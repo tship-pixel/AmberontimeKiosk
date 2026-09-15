@@ -19,8 +19,8 @@ class AdsEngine {
     this.isPlaying = false;
     this.isWaking = false;
 
-    // Remote Server Feed URL (stored in localStorage or empty)
-    this.remoteFeedUrl = localStorage.getItem('kiosk_ad_server_url') || '';
+    // Remote Server Feed URL (defaults to /api/ads when running on HTTP/HTTPS)
+    this.remoteFeedUrl = localStorage.getItem('kiosk_ad_server_url') || (window.location.protocol.startsWith('http') ? '/api/ads' : '');
 
     // Default slides with full taxi booking info and local img/ images
     this.defaultSlides = [
@@ -65,10 +65,10 @@ class AdsEngine {
     this.slides = this.loadSlides();
     this.init();
 
-    // If a remote feed is configured, fetch it and schedule periodic sync
+    // If a remote feed is configured or running on HTTP server, immediately fetch and schedule rapid sync
     if (this.remoteFeedUrl) {
       this.fetchRemoteAds(this.remoteFeedUrl);
-      this.startRemoteSync(300000); // sync every 5 minutes
+      this.startRemoteSync(10000); // auto-sync every 10 seconds in real-time
     }
   }
 
@@ -121,6 +121,7 @@ class AdsEngine {
       if (Array.isArray(data) && data.length > 0) {
         const normalized = data.map((item, idx) => ({
           id: item.id || `remote-ad-${idx}`,
+          type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
           title: item.title || 'Amber OnTime',
           tagline: item.tagline || 'Instant ride dispatch & airport transfers',
           badge: item.badge || 'Featured',
@@ -129,7 +130,19 @@ class AdsEngine {
           features: item.features || []
         }));
 
-        this.saveSlides(normalized);
+        // Compare if slides have changed to avoid interrupting a running slide
+        const currentSummary = this.slides.map(s => `${s.id}-${s.mediaUrl}`).join('|');
+        const newSummary = normalized.map(s => `${s.id}-${s.mediaUrl}`).join('|');
+
+        if (currentSummary !== newSummary || this.slides.length !== normalized.length) {
+          const wasPlaying = this.isPlaying;
+          this.slides = normalized;
+          localStorage.setItem('kiosk_ads', JSON.stringify(normalized));
+          this.renderSlides();
+          if (wasPlaying && !this.isPlaying) {
+            this.start();
+          }
+        }
         return { success: true, count: normalized.length };
       } else {
         throw new Error('Invalid JSON: expected array of slide objects');
@@ -140,7 +153,7 @@ class AdsEngine {
     }
   }
 
-  startRemoteSync(intervalMs = 300000) {
+  startRemoteSync(intervalMs = 10000) {
     clearInterval(this.remoteSyncInterval);
     this.remoteSyncInterval = setInterval(() => {
       if (this.remoteFeedUrl) {
