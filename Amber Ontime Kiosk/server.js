@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const TARGET_HOST = 'amberontime.com';
 const ADS_JSON_PATH = path.join(__dirname, 'ads.json');
 const AD_LOG_PATH = path.join(__dirname, 'ad_analytics_log.txt');
