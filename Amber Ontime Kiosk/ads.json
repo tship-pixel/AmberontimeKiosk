@@ -1,0 +1,133 @@
+[
+  {
+    "id": "ad-1789505976290",
+    "type": "video",
+    "title": "Server Test MP4 Video Ad",
+    "tagline": "Automated video test slide",
+    "badge": "Video Test",
+    "badgeColor": "bg-red-600 text-white",
+    "mediaUrl": "img/upload_1789505976288.mp4",
+    "features": [
+      "🎬 HD Video",
+      "🔁 Loop"
+    ]
+  },
+  {
+    "id": "ad-1789505976281",
+    "type": "image",
+    "title": "Server Test PNG Ad",
+    "tagline": "Automated diagnostic test slide",
+    "badge": "Test Pass",
+    "badgeColor": "bg-red-600 text-white",
+    "mediaUrl": "img/upload_1789505976279.png",
+    "features": [
+      "⚡ Fast Test",
+      "🔒 Verified"
+    ]
+  },
+  {
+    "id": "ad-1789493951023",
+    "type": "image",
+    "title": "Amber News",
+    "tagline": "News at your finger tip.",
+    "badge": "Voice of Truth",
+    "badgeColor": "bg-red-600 text-white",
+    "mediaUrl": "img/upload_1789493951016.png",
+    "features": [
+      "Stay Alert!",
+      "Advertise with us!"
+    ]
+  },
+  {
+    "id": "ad-1789493661455",
+    "type": "video",
+    "title": "Testing Bunny",
+    "tagline": "Instant Rides",
+    "badge": "24/7",
+    "badgeColor": "bg-red-600 text-white",
+    "mediaUrl": "img/upload_1789493661451.mp4",
+    "features": [
+      "Card and Cash"
+    ]
+  },
+  {
+    "id": "taxi-ad-1",
+    "title": "Book Your Taxi in Seconds",
+    "tagline": "Instant airport transfers, city rides, and fixed transparent rates with zero surge pricing.",
+    "badge": "Instant Ride Dispatch",
+    "bgGradient": "from-amber-600/40 via-slate-950 to-slate-950",
+    "cardGradient": "from-amber-500 to-yellow-500",
+    "icon": "car",
+    "mediaUrl": "img/ad1.jpg",
+    "features": [
+      "🚖 Instant Dispatch",
+      "⏱️ ~3 Min Arrival",
+      "💳 Card & Cash Accepted",
+      "📍 GPS Tracked"
+    ]
+  },
+  {
+    "id": "taxi-ad-2",
+    "title": "24/7 Airport & Intercity Transfers",
+    "tagline": "Spacious luggage capacity, comfortable sedans, and executive VIP transport on demand.",
+    "badge": "Airport Express Service",
+    "bgGradient": "from-blue-600/40 via-slate-950 to-slate-950",
+    "cardGradient": "from-blue-600 to-indigo-600",
+    "icon": "plane-takeoff",
+    "mediaUrl": "img/ad2.jpg",
+    "features": [
+      "✈️ Flight Tracking",
+      "🧳 Luggage Assistance",
+      "👥 Group Shuttles",
+      "⭐ Top Rated Drivers"
+    ]
+  },
+  {
+    "id": "taxi-ad-3",
+    "title": "Amber OnTime Premium Fleet",
+    "tagline": "Licensed professional drivers, sanitized vehicles, and live SMS ride tracking.",
+    "badge": "Zero Surge • Fixed Fares",
+    "bgGradient": "from-emerald-600/40 via-slate-950 to-slate-950",
+    "cardGradient": "from-emerald-500 to-teal-600",
+    "icon": "shield-check",
+    "mediaUrl": "img/ad3.jpg",
+    "features": [
+      "🔒 Verified Drivers",
+      "📱 SMS Status Alert",
+      "🧾 Printed Receipt",
+      "❄️ Climate Controlled"
+    ]
+  },
+  {
+    "id": "taxi-ad",
+    "title": "Amber OnTime",
+    "tagline": "Licensed professional drivers, sanitized vehicles, and live SMS ride tracking.",
+    "badge": "Zero Surge • Fixed Fares",
+    "bgGradient": "from-emerald-600/40 via-slate-950 to-slate-950",
+    "cardGradient": "from-emerald-500 to-teal-600",
+    "icon": "shield-check",
+    "mediaUrl": "img/splashlogo.svg",
+    "features": [
+      "🔒 Verified Drivers",
+      "📱 SMS Status Alert",
+      "🧾 Printed Receipt",
+      "❄️ Climate Controlled"
+    ]
+  },
+  {
+    "id": "taxi-ad-4",
+    "title": "Tap Screen to Begin Booking",
+    "tagline": "Select your destination on our self-service touch kiosk and get your taxi ticket immediately.",
+    "badge": "Self-Service Kiosk",
+    "bgGradient": "from-purple-600/40 via-slate-950 to-slate-950",
+    "cardGradient": "from-purple-500 to-pink-600",
+    "icon": "touchpad",
+    "mediaUrl": "img/ad4.jpg",
+    "features": [
+      "⚡ 3 Simple Steps",
+      "🗺️ Interactive Map",
+      "🏷️ Transparent Pricing",
+      "📲 Direct Driver Contact"
+    ]
+  }
+]
