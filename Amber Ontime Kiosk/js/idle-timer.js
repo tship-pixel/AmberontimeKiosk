@@ -1,5 +1,6 @@
 /**
  * Idle Detection & Timeout Manager for Kiosk
+ * Handles cross-frame activity, on-screen typing, and graceful warning dismissals
  */
 class IdleTimer {
   constructor(options = {}) {
@@ -11,20 +12,20 @@ class IdleTimer {
     this.warningCountdownEl = document.getElementById(options.warningCountdownId || 'idle-countdown-number');
     this.continueBtn = document.getElementById(options.continueBtnId || 'idle-continue-btn');
 
-    // Default 45s total idle time, 10s warning window
-    this.idleTimeoutSec = this.loadTimeout() || options.defaultTimeoutSec || 45;
-    this.warningDurationSec = options.warningDurationSec || 10;
+    // Default 90s total idle time, 15s warning window
+    this.idleTimeoutSec = this.loadTimeout() || options.defaultTimeoutSec || 90;
+    this.warningDurationSec = options.warningDurationSec || 15;
 
     this.timer = null;
     this.countdownInterval = null;
-    this.iframeCheckInterval = null;
     this.secondsRemaining = this.idleTimeoutSec;
     this.isWarningActive = false;
     this.isActive = false;
 
-    this.events = ['pointerdown', 'touchstart', 'mousemove', 'click', 'scroll', 'keydown'];
+    this.events = ['pointerdown', 'touchstart', 'touchmove', 'mousemove', 'click', 'scroll', 'keydown', 'keyup', 'input', 'change', 'focus'];
     this.eventHandler = this.handleUserActivity.bind(this);
     this.blurHandler = this.handleWindowBlur.bind(this);
+    this.messageHandler = this.handleMessage.bind(this);
 
     this.init();
   }
@@ -32,7 +33,10 @@ class IdleTimer {
   loadTimeout() {
     try {
       const stored = localStorage.getItem('kiosk_idle_timeout');
-      if (stored) return parseInt(stored, 10);
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
     } catch (e) {
       console.warn('Failed to read idle timeout:', e);
     }
@@ -54,6 +58,39 @@ class IdleTimer {
         this.reset();
       });
     }
+
+    if (this.warningModal) {
+      this.warningModal.addEventListener('click', (e) => {
+        if (this.isWarningActive) {
+          this.dismissWarning();
+          this.reset();
+        }
+      });
+      this.warningModal.addEventListener('touchstart', (e) => {
+        if (this.isWarningActive) {
+          this.dismissWarning();
+          this.reset();
+        }
+      }, { passive: true });
+    }
+
+    // Attach listener to iframe when it finishes loading
+    const iframe = document.getElementById('kiosk-iframe');
+    if (iframe) {
+      iframe.addEventListener('load', () => {
+        this.attachIframeListeners(iframe);
+      });
+    }
+  }
+
+  attachIframeListeners(iframe) {
+    try {
+      if (iframe && iframe.contentDocument) {
+        this.events.forEach(evt => {
+          iframe.contentDocument.addEventListener(evt, this.eventHandler, { passive: true, capture: true });
+        });
+      }
+    } catch (_) {}
   }
 
   start() {
@@ -72,20 +109,35 @@ class IdleTimer {
 
   bindEvents() {
     this.events.forEach(evt => {
-      window.addEventListener(evt, this.eventHandler, { passive: true });
+      window.addEventListener(evt, this.eventHandler, { passive: true, capture: true });
+      document.addEventListener(evt, this.eventHandler, { passive: true, capture: true });
     });
     window.addEventListener('blur', this.blurHandler);
+    window.addEventListener('message', this.messageHandler);
+
+    const iframe = document.getElementById('kiosk-iframe');
+    if (iframe) {
+      this.attachIframeListeners(iframe);
+    }
   }
 
   unbindEvents() {
     this.events.forEach(evt => {
-      window.removeEventListener(evt, this.eventHandler);
+      window.removeEventListener(evt, this.eventHandler, { capture: true });
+      document.removeEventListener(evt, this.eventHandler, { capture: true });
     });
     window.removeEventListener('blur', this.blurHandler);
+    window.removeEventListener('message', this.messageHandler);
+  }
+
+  handleMessage(e) {
+    if (e && e.data === 'kiosk_user_activity') {
+      this.handleUserActivity(e);
+    }
   }
 
   handleWindowBlur() {
-    // When a user clicks or touches inside a cross-domain iframe (e.g. amberontime.com/kiosk), window blurs
+    // When focus shifts into the booking iframe, register as activity and reset timer
     if (this.isActive) {
       this.reset();
     }
@@ -94,9 +146,9 @@ class IdleTimer {
   handleUserActivity(e) {
     if (!this.isActive) return;
     
-    // If the warning modal is currently shown, only clicking the continue button or modal should dismiss it
+    // If the warning modal is active, ANY tap, touch, or keypress instantly dismisses it
     if (this.isWarningActive) {
-      return;
+      this.dismissWarning();
     }
 
     this.reset();
@@ -107,6 +159,7 @@ class IdleTimer {
 
     this.clearAllTimers();
     this.hideWarning();
+    this.isWarningActive = false;
     this.secondsRemaining = this.idleTimeoutSec;
 
     const timeUntilWarningMs = Math.max(0, (this.idleTimeoutSec - this.warningDurationSec) * 1000);

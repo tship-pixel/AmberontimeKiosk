@@ -304,6 +304,8 @@ class AdsEngine {
       timestamp: new Date().toISOString()
     };
 
+    console.log(`[Ad Analytics Logged] ${payload.title} (${payload.type}) - ${payload.durationSec}s`);
+
     // Send to server logging endpoint
     try {
       const endpoint = this.remoteFeedUrl
@@ -313,7 +315,8 @@ class AdsEngine {
       fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        keepalive: true
       }).catch(() => {
         this.bufferOfflineLog(payload);
       });

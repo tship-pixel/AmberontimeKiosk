@@ -102,8 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
     warningModalId: 'idle-warning-modal',
     warningCountdownId: 'idle-countdown-number',
     continueBtnId: 'idle-continue-btn',
-    defaultTimeoutSec: 45,
-    warningDurationSec: 10,
+    defaultTimeoutSec: 90,
+    warningDurationSec: 15,
     onIdle: () => sleepToAds()
   });
 

@@ -353,6 +353,44 @@ No ad impressions recorded yet.
     delete headers['content-security-policy-report-only'];
     headers['access-control-allow-origin'] = '*';
 
+    const contentType = (headers['content-type'] || '').toLowerCase();
+    const isHtml = contentType.includes('text/html');
+
+    if (isHtml) {
+      delete headers['content-length'];
+      res.writeHead(proxyRes.statusCode, headers);
+
+      const bridgeScript = `
+<script>
+  (function() {
+    var evts = ['pointerdown', 'touchstart', 'touchmove', 'click', 'keydown', 'keyup', 'input', 'change', 'focus', 'scroll'];
+    evts.forEach(function(evt) {
+      window.addEventListener(evt, function() {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage('kiosk_user_activity', '*');
+          }
+        } catch (_) {}
+      }, { passive: true, capture: true });
+    });
+  })();
+</script>
+</body>`;
+
+      let bodyChunks = [];
+      proxyRes.on('data', chunk => { bodyChunks.push(chunk); });
+      proxyRes.on('end', () => {
+        let html = Buffer.concat(bodyChunks).toString('utf8');
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', bridgeScript);
+        } else {
+          html += bridgeScript;
+        }
+        res.end(html);
+      });
+      return;
+    }
+
     res.writeHead(proxyRes.statusCode, headers);
     proxyRes.pipe(res);
   });

@@ -66,9 +66,7 @@
     <!-- Bottom Action & Touch Prompter (Clear Glass with Down Shadow) -->
     <div class="relative z-20 flex flex-col items-center pb-8 px-6 pointer-events-none">
       <div class="flex items-center gap-3.5 px-8 py-3.5 rounded-full clear-glass-pill shadow-2xl mb-4 animate-float">
-        <div class="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-600/40">
-          <i data-lucide="hand" class="w-4 h-4"></i>
-        </div>
+        <img src="img/logo.png" alt="Amber OnTime" class="w-9 h-9 object-contain drop-shadow-lg" />
         <span class="text-base font-bold text-white font-display tracking-wide drop-shadow-md">Touch Screen to Book a Taxi</span>
       </div>
 
@@ -306,11 +304,11 @@
             <label class="block text-xs font-semibold text-slate-400">Idle Timeout Before Ads</label>
             <select id="admin-timeout-select"
               class="w-full py-2.5 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none">
-              <option value="15">15 Seconds (Rapid Testing)</option>
-              <option value="30">30 Seconds</option>
-              <option value="45">45 Seconds (Recommended)</option>
+              <option value="30">30 Seconds (Testing)</option>
               <option value="60">1 Minute</option>
+              <option value="90">90 Seconds (Recommended)</option>
               <option value="120">2 Minutes</option>
+              <option value="180">3 Minutes</option>
               <option value="300">5 Minutes</option>
               <option value="0">Disabled (Never Auto-Reset)</option>
             </select>
