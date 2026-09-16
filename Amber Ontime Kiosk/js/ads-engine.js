@@ -196,15 +196,15 @@ class AdsEngine {
           <!-- Full-Bleed Media (100% Unobstructed Image / Video) -->
           ${mediaMarkup}
 
-          <!-- Optional QR Code Card (Floating in bottom-right corner) -->
+          <!-- Optional QR Code Card (Floating at the Right Center of the screen) -->
           ${slide.qrCodeUrl ? `
-            <div class="absolute bottom-28 right-6 md:bottom-28 md:right-10 z-20 flex flex-col items-center gap-2 p-3 rounded-2xl clear-glass-card shadow-2xl animate-float pointer-events-auto">
-              <div class="bg-white p-2 rounded-xl shadow-md">
-                <img src="${slide.qrCodeUrl}" alt="Scan QR Code" class="w-24 h-24 md:w-28 md:h-28 object-contain" />
+            <div class="absolute right-6 md:right-10 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 p-3.5 rounded-2xl clear-glass-card shadow-2xl animate-float pointer-events-auto">
+              <div class="bg-white p-2.5 rounded-xl shadow-md">
+                <img src="${slide.qrCodeUrl}" alt="Scan QR Code" class="w-24 h-24 md:w-32 md:h-32 object-contain" />
               </div>
-              <span class="text-[11px] font-bold text-white/95 uppercase tracking-wider font-display drop-shadow-md flex items-center gap-1.5">
-                <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
-                <span>Scan with Phone</span>
+              <span class="text-[12px] font-bold text-white/95 uppercase tracking-wider font-display drop-shadow-md flex items-center gap-1.5">
+                <i data-lucide="qr-code" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span>Scan for more info</span>
               </span>
             </div>
           ` : ''}

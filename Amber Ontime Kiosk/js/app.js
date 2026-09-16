@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Default / Saved Configuration
   let kioskUrl = localStorage.getItem('kiosk_target_url') || 'https://amberontime.com/kiosk';
-  let appMode = localStorage.getItem('kiosk_app_mode') || 'direct'; // 'direct', 'web', or 'builtin'
+  let appMode = localStorage.getItem('kiosk_app_mode') || 'web'; // 'web', 'direct', or 'builtin'
   let masterPin = localStorage.getItem('kiosk_master_pin') || '1234';
 
   function applyKioskConfig() {
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
       window.soundEngine.playWake();
     }
 
-    // Direct Navigation Mode (Recommended for 100% Google Maps & API Key Compatibility)
+    // Optional direct top-level navigation if explicitly configured in Admin
     if (appMode === 'direct') {
       adsEngine.stop();
       window.location.href = kioskUrl;
