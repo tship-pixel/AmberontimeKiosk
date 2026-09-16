@@ -341,6 +341,46 @@ No ad impressions recorded yet.
   }
 
   // ==========================================
+  // GOOGLE MAPS PROXY (Ensures Google Maps always loads with valid referer)
+  // ==========================================
+  if (parsedUrl.startsWith('/proxy-maps')) {
+    const mapsPath = req.url.replace(/^\/proxy-maps/, '');
+    const mapsOptions = {
+      hostname: 'maps.googleapis.com',
+      port: 443,
+      path: mapsPath,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: 'maps.googleapis.com',
+        referer: `https://${TARGET_HOST}/`,
+        origin: `https://${TARGET_HOST}`
+      }
+    };
+
+    const mapsReq = https.request(mapsOptions, (mapsRes) => {
+      const headers = { ...mapsRes.headers };
+      delete headers['x-frame-options'];
+      delete headers['content-security-policy'];
+      headers['access-control-allow-origin'] = '*';
+      headers['access-control-allow-methods'] = 'GET, POST, OPTIONS';
+      headers['access-control-allow-headers'] = '*';
+
+      res.writeHead(mapsRes.statusCode, headers);
+      mapsRes.pipe(res);
+    });
+
+    mapsReq.on('error', (err) => {
+      console.error('Maps Proxy Error:', err.message);
+      res.writeHead(502, { 'Content-Type': 'text/plain' });
+      res.end('Maps Proxy Error: ' + err.message);
+    });
+
+    req.pipe(mapsReq);
+    return;
+  }
+
+  // ==========================================
   // REVERSE PROXY TO AMBERONTIME.COM/KIOSK
   // ==========================================
   const targetPath = parsedUrl === '/proxy-kiosk' ? '/kiosk' : req.url;
@@ -372,6 +412,64 @@ No ad impressions recorded yet.
       delete headers['content-length'];
       res.writeHead(proxyRes.statusCode, headers);
 
+      const mapsInterceptorScript = `
+<script>
+  (function() {
+    var origCreateElement = document.createElement;
+    document.createElement = function(tagName, options) {
+      var el = origCreateElement.call(document, tagName, options);
+      if (tagName && tagName.toLowerCase() === 'script') {
+        var origSetAttribute = el.setAttribute;
+        el.setAttribute = function(name, val) {
+          if (name && name.toLowerCase() === 'src' && typeof val === 'string' && val.includes('maps.googleapis.com')) {
+            val = val.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps');
+          }
+          return origSetAttribute.call(el, name, val);
+        };
+        try {
+          var origSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
+          Object.defineProperty(el, 'src', {
+            set: function(val) {
+              if (typeof val === 'string' && val.includes('maps.googleapis.com')) {
+                val = val.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps');
+              }
+              if (origSrcDescriptor && origSrcDescriptor.set) {
+                origSrcDescriptor.set.call(el, val);
+              } else {
+                el.setAttribute('src', val);
+              }
+            },
+            get: function() {
+              return (origSrcDescriptor && origSrcDescriptor.get) ? origSrcDescriptor.get.call(el) : el.getAttribute('src');
+            },
+            configurable: true
+          });
+        } catch (_) {}
+      }
+      return el;
+    };
+
+    if (window.fetch) {
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        if (typeof input === 'string' && input.includes('maps.googleapis.com')) {
+          input = input.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps');
+        }
+        return origFetch.call(this, input, init);
+      };
+    }
+    if (window.XMLHttpRequest) {
+      var origOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        if (typeof url === 'string' && url.includes('maps.googleapis.com')) {
+          url = url.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps');
+        }
+        return origOpen.apply(this, arguments);
+      };
+    }
+  })();
+</script>`;
+
       const bridgeScript = `
 <script>
   (function() {
@@ -393,6 +491,15 @@ No ad impressions recorded yet.
       proxyRes.on('data', chunk => { bodyChunks.push(chunk); });
       proxyRes.on('end', () => {
         let html = Buffer.concat(bodyChunks).toString('utf8');
+        
+        // Inject maps interceptor in head
+        if (html.includes('<head>')) {
+          html = html.replace('<head>', '<head>' + mapsInterceptorScript);
+        } else if (html.includes('<html>')) {
+          html = html.replace('<html>', '<html><head>' + mapsInterceptorScript + '</head>');
+        }
+
+        // Inject idle activity bridge before body close
         if (html.includes('</body>')) {
           html = html.replace('</body>', bridgeScript);
         } else {
