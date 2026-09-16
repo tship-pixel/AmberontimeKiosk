@@ -258,12 +258,13 @@
 
           <div class="flex items-center justify-between pt-2 border-t border-slate-800">
             <div>
-              <span class="block text-sm font-bold text-slate-200">Application Mode</span>
-              <span class="text-xs text-slate-400">Choose between embedded web URL or built-in offline hub</span>
+              <span class="block text-sm font-bold text-slate-200">Application Launch Mode</span>
+              <span class="text-xs text-slate-400">Direct Navigation provides 100% native Google Maps compatibility</span>
             </div>
             <select id="admin-mode-select"
               class="py-2 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs font-semibold focus:outline-none">
-              <option value="web">Embedded Web App</option>
+              <option value="direct">Direct Navigation (Recommended for Maps)</option>
+              <option value="web">Embedded Web Frame</option>
               <option value="builtin">Built-in Offline Hub</option>
             </select>
           </div>
@@ -404,35 +405,49 @@
             <input type="hidden" id="new-slide-mediatype" value="image" />
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1">Slide Title</label>
-              <input type="text" id="new-slide-title" required placeholder="e.g. Airport Transfer Special"
-                class="w-full py-2 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1">Badge Tag</label>
-              <input type="text" id="new-slide-badge" placeholder="e.g. 24/7 Available"
-                class="w-full py-2 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500" />
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Ad / Campaign Name</label>
+              <input type="text" id="new-slide-title" required placeholder="e.g. Amber News, Promo Banner, Special Offer"
+                class="w-full py-2.5 px-3.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500" />
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Tagline / Description</label>
-            <input type="text" id="new-slide-tagline" placeholder="e.g. Instant rides, fixed rates, zero surge pricing"
-              class="w-full py-2 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500" />
-          </div>
+          <!-- QR Code Image Upload (Optional) -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-slate-300">QR Code (Optional Image)</label>
+              <span class="text-[11px] text-slate-400">PNG, JPG, or SVG</span>
+            </div>
+            <div id="qr-dropzone" class="relative flex items-center justify-between p-3 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl bg-slate-800/60 cursor-pointer transition-colors">
+              <input type="file" id="new-qr-file" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+              
+              <div id="qr-placeholder" class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-slate-700/60 text-slate-300 flex items-center justify-center shadow-sm">
+                  <i data-lucide="qr-code" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <p class="text-xs font-medium text-slate-300">Tap to upload QR Code image</p>
+                  <p class="text-[10px] text-slate-500">Displayed in corner of ad for customers to scan</p>
+                </div>
+              </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Feature Badges (Comma-separated)</label>
-            <input type="text" id="new-slide-features" placeholder="e.g. 🚖 Instant Dispatch, ⏱️ ~3 Min Arrival, 💳 Card & Cash"
-              class="w-full py-2 px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500" />
+              <div id="qr-preview-container" class="hidden flex items-center gap-2 relative z-30">
+                <div class="w-10 h-10 rounded-lg bg-white p-1 shadow">
+                  <img id="qr-preview-img" src="" alt="QR Preview" class="w-full h-full object-contain" />
+                </div>
+                <button type="button" id="remove-qr-btn" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-red-400">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+            <input type="hidden" id="new-qr-dataurl" value="" />
           </div>
 
           <button type="submit" id="add-slide-submit-btn"
             class="touch-press w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg shadow-red-600/30 transition-all flex items-center justify-center gap-2">
             <i data-lucide="plus" class="w-4 h-4"></i>
-            <span>Upload & Add Slide to Reel</span>
+            <span>Upload & Add Ad to Reel</span>
           </button>
         </form>
 

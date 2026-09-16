@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Default / Saved Configuration
   let kioskUrl = localStorage.getItem('kiosk_target_url') || 'https://amberontime.com/kiosk';
-  let appMode = localStorage.getItem('kiosk_app_mode') || 'web'; // 'web' or 'builtin'
+  let appMode = localStorage.getItem('kiosk_app_mode') || 'direct'; // 'direct', 'web', or 'builtin'
   let masterPin = localStorage.getItem('kiosk_master_pin') || '1234';
 
   function applyKioskConfig() {
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isHttpServer = window.location.protocol.startsWith('http');
       let effectiveSrc = kioskUrl;
       
-      // If served from a server (local IP, localhost, or domain) and target is amberontime.com/kiosk, route through /proxy-kiosk
+      // If served from a server and target is amberontime.com/kiosk in embedded mode, route through /proxy-kiosk
       if (isHttpServer && kioskUrl.includes('amberontime.com/kiosk')) {
         effectiveSrc = '/proxy-kiosk';
       }
@@ -78,12 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
       adminModeSelect.value = appMode;
     }
 
-    if (appMode === 'web') {
-      if (webAppContainer) webAppContainer.classList.remove('hidden');
-      if (builtinHubContainer) builtinHubContainer.classList.add('hidden');
-    } else {
+    if (appMode === 'builtin') {
       if (webAppContainer) webAppContainer.classList.add('hidden');
       if (builtinHubContainer) builtinHubContainer.classList.remove('hidden');
+    } else {
+      if (webAppContainer) webAppContainer.classList.remove('hidden');
+      if (builtinHubContainer) builtinHubContainer.classList.add('hidden');
     }
   }
   applyKioskConfig();
@@ -114,6 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function wakeToApp() {
     if (window.soundEngine) {
       window.soundEngine.playWake();
+    }
+
+    // Direct Navigation Mode (Recommended for 100% Google Maps & API Key Compatibility)
+    if (appMode === 'direct') {
+      adsEngine.stop();
+      window.location.href = kioskUrl;
+      return;
     }
 
     applyKioskConfig();
@@ -576,12 +583,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (clearFeedBtn) {
-    clearFeedBtn.addEventListener('click', (e) => {
+    clearFeedBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (window.soundEngine) window.soundEngine.playTap();
       if (adminAdServerUrl) adminAdServerUrl.value = '';
-      adsEngine.setRemoteFeedUrl('');
-      adsEngine.saveSlides(adsEngine.defaultSlides);
+      localStorage.removeItem('kiosk_ad_server_url');
+      adsEngine.remoteFeedUrl = window.location.protocol.startsWith('http') ? '/api/ads' : '';
+      await adsEngine.fetchRemoteAds(adsEngine.remoteFeedUrl);
       updateAdFeedStatus();
       renderAdminSlidesList();
     });
@@ -600,6 +608,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const imageDropzone = document.getElementById('image-dropzone');
   const addSlideSubmitBtn = document.getElementById('add-slide-submit-btn');
 
+  // QR Code Elements
+  const newQrFile = document.getElementById('new-qr-file');
+  const qrPlaceholder = document.getElementById('qr-placeholder');
+  const qrPreviewContainer = document.getElementById('qr-preview-container');
+  const qrPreviewImg = document.getElementById('qr-preview-img');
+  const removeQrBtn = document.getElementById('remove-qr-btn');
+  const newQrDataUrl = document.getElementById('new-qr-dataurl');
+
   function resetPhotoUpload() {
     if (newSlideFile) newSlideFile.value = '';
     if (newSlideDataUrl) newSlideDataUrl.value = '';
@@ -616,15 +632,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadPlaceholder) uploadPlaceholder.classList.remove('hidden');
   }
 
+  function resetQrUpload() {
+    if (newQrFile) newQrFile.value = '';
+    if (newQrDataUrl) newQrDataUrl.value = '';
+    if (qrPreviewImg) qrPreviewImg.src = '';
+    if (qrPreviewContainer) qrPreviewContainer.classList.add('hidden');
+    if (qrPlaceholder) qrPlaceholder.classList.remove('hidden');
+  }
+
   function handleFileSelect(file) {
     if (!file) return;
 
     const fileName = (file.name || '').toLowerCase();
-    const isPng = file.type === 'image/png' || fileName.endsWith('.png');
+    const isPng = file.type === 'image/png' || fileName.endsWith('.png') || file.type.startsWith('image/');
     const isMp4 = file.type === 'video/mp4' || fileName.endsWith('.mp4');
 
     if (!isPng && !isMp4) {
-      alert('Invalid file format! Please select a PNG image (.png) or an MP4 video (.mp4).');
+      alert('Invalid file format! Please select an image or MP4 video (.mp4).');
       resetPhotoUpload();
       return;
     }
@@ -633,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mediaType = isVideo ? 'video' : 'image';
     if (newSlideMediaType) newSlideMediaType.value = mediaType;
     if (mediaTypeBadge) {
-      mediaTypeBadge.textContent = isVideo ? '🎬 MP4 Video Ad' : '📷 PNG Photo Ad';
+      mediaTypeBadge.textContent = isVideo ? '🎬 MP4 Video Ad' : '📷 Image Ad';
       mediaTypeBadge.className = isVideo 
         ? 'absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-indigo-900/80 backdrop-blur-md text-[10px] font-bold text-indigo-300 border border-white/10 uppercase tracking-wider z-30'
         : 'absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md text-[10px] font-bold text-amber-300 border border-white/10 uppercase tracking-wider z-30';
@@ -669,10 +693,31 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsDataURL(file);
   }
 
+  function handleQrSelect(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      if (newQrDataUrl) newQrDataUrl.value = dataUrl;
+      if (qrPreviewImg) qrPreviewImg.src = dataUrl;
+      if (qrPlaceholder) qrPlaceholder.classList.add('hidden');
+      if (qrPreviewContainer) qrPreviewContainer.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    };
+    reader.readAsDataURL(file);
+  }
+
   if (newSlideFile) {
     newSlideFile.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) handleFileSelect(file);
+    });
+  }
+
+  if (newQrFile) {
+    newQrFile.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) handleQrSelect(file);
     });
   }
 
@@ -682,6 +727,15 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       if (window.soundEngine) window.soundEngine.playTap();
       resetPhotoUpload();
+    });
+  }
+
+  if (removeQrBtn) {
+    removeQrBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.soundEngine) window.soundEngine.playTap();
+      resetQrUpload();
     });
   }
 
@@ -739,9 +793,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="truncate">
             <div class="flex items-center gap-1.5">
               <p class="font-bold text-slate-200 truncate">${slide.title}</p>
-              ${isVideo ? '<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">VIDEO</span>' : ''}
+              ${isVideo ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">VIDEO</span>' : ''}
+              ${slide.qrCodeUrl ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><i data-lucide="qr-code" class="w-3 h-3"></i>QR</span>' : ''}
             </div>
-            <p class="text-xs text-slate-400 truncate">${slide.tagline || ''}</p>
+            <p class="text-xs text-slate-400 truncate">${slide.mediaUrl}</p>
           </div>
         </div>
         <button data-delete-id="${slide.id || idx}" class="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex-shrink-0 ml-2">
@@ -776,17 +831,10 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       if (window.soundEngine) window.soundEngine.playTap();
 
-      const title = (document.getElementById('new-slide-title')?.value || '').trim();
-      const badge = (document.getElementById('new-slide-badge')?.value || '').trim() || 'Promo';
-      const tagline = (document.getElementById('new-slide-tagline')?.value || '').trim();
-      const featuresRaw = (document.getElementById('new-slide-features')?.value || '').trim();
+      const title = (document.getElementById('new-slide-title')?.value || '').trim() || 'Advertisement';
       const mediaDataUrl = newSlideDataUrl ? newSlideDataUrl.value.trim() : '';
       const mediaType = newSlideMediaType ? newSlideMediaType.value : 'image';
-
-      if (!title) {
-        alert('Please enter a Slide Title.');
-        return;
-      }
+      const qrDataUrl = newQrDataUrl ? newQrDataUrl.value.trim() : '';
 
       if (!mediaDataUrl) {
         alert('Please select or upload a photo or video for the ad.');
@@ -799,9 +847,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
       }
 
-      const features = featuresRaw ? featuresRaw.split(',').map(f => f.trim()).filter(Boolean) : [];
-
       let finalMediaUrl = mediaDataUrl;
+      let finalQrUrl = qrDataUrl;
       let finalType = mediaType;
       let adId = 'ad-' + Date.now();
 
@@ -816,11 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
-            tagline,
-            badge,
-            features,
             type: mediaType,
-            mediaBase64: mediaDataUrl
+            mediaBase64: mediaDataUrl,
+            qrBase64: qrDataUrl
           })
         });
 
@@ -828,6 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const result = await res.json();
           if (result.success && result.ad) {
             finalMediaUrl = result.ad.mediaUrl;
+            finalQrUrl = result.ad.qrCodeUrl || qrDataUrl;
             finalType = result.ad.type || mediaType;
             adId = result.ad.id;
           }
@@ -840,11 +886,8 @@ document.addEventListener('DOMContentLoaded', () => {
         id: adId,
         type: finalType,
         title,
-        tagline,
         mediaUrl: finalMediaUrl,
-        badge,
-        badgeColor: 'bg-red-600 text-white',
-        features
+        qrCodeUrl: finalQrUrl
       };
 
       const updated = [newSlide, ...adsEngine.slides];
@@ -854,13 +897,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Reset form and upload UI
       addSlideForm.reset();
       resetPhotoUpload();
+      resetQrUpload();
 
       if (addSlideSubmitBtn) {
         addSlideSubmitBtn.disabled = false;
         addSlideSubmitBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-emerald-300"></i><span>Ad Added!</span>';
         if (window.lucide) lucide.createIcons();
         setTimeout(() => {
-          addSlideSubmitBtn.innerHTML = '<i data-lucide="plus" class="w-4 h-4"></i><span>Upload & Add Slide to Reel</span>';
+          addSlideSubmitBtn.innerHTML = '<i data-lucide="plus" class="w-4 h-4"></i><span>Upload & Add Ad to Reel</span>';
           if (window.lucide) lucide.createIcons();
         }, 2000);
       }

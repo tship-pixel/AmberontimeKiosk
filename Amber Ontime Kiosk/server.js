@@ -78,7 +78,7 @@ const server = http.createServer((req, res) => {
       try {
         const body = Buffer.concat(chunks).toString('utf8');
         const payload = JSON.parse(body);
-        const { title, tagline, badge, features, imageBase64, mediaBase64, videoBase64, filename, type: explicitType } = payload;
+        const { title, imageBase64, mediaBase64, videoBase64, filename, type: explicitType, qrBase64, qrUrl } = payload;
         const uploadData = mediaBase64 || videoBase64 || imageBase64;
 
         let mediaPath = 'img/ad1.jpg'; // default
@@ -108,16 +108,28 @@ const server = http.createServer((req, res) => {
           }
         }
 
-        // Construct new ad item
+        // Save base64 QR code image to disk if provided
+        let qrPath = null;
+        if (qrBase64 && qrBase64.includes(';base64,')) {
+          const qrParts = qrBase64.split(';base64,');
+          const qrExt = qrParts[0].includes('image/png') ? 'png' : (qrParts[0].includes('image/svg') ? 'svg' : 'jpg');
+          const safeQrFilename = `qr_${Date.now()}.${qrExt}`;
+          const qrDiskPath = path.join(IMG_DIR, safeQrFilename);
+          const qrBuffer = Buffer.from(qrParts[1], 'base64');
+          
+          fs.writeFileSync(qrDiskPath, qrBuffer);
+          qrPath = `img/${safeQrFilename}`;
+        } else if (qrUrl) {
+          qrPath = qrUrl;
+        }
+
+        // Construct new ad item (Pure media + optional QR code)
         const newAd = {
           id: `ad-${Date.now()}`,
           type: detectedType,
-          title: title || 'Amber OnTime',
-          tagline: tagline || '',
-          badge: badge || 'Promo',
-          badgeColor: 'bg-red-600 text-white',
+          title: title || 'Advertisement',
           mediaUrl: mediaPath,
-          features: Array.isArray(features) ? features : (features ? features.split(',').map(f => f.trim()) : [])
+          qrCodeUrl: qrPath
         };
 
         // Update ads.json

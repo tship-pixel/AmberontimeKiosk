@@ -22,46 +22,7 @@ class AdsEngine {
     // Remote Server Feed URL (defaults to /api/ads when running on HTTP/HTTPS)
     this.remoteFeedUrl = localStorage.getItem('kiosk_ad_server_url') || (window.location.protocol.startsWith('http') ? '/api/ads' : '');
 
-    // Default slides with full taxi booking info and local img/ images
-    this.defaultSlides = [
-      {
-        id: 'taxi-ad-1',
-        title: 'Book Your Taxi in Seconds',
-        tagline: 'Instant airport transfers, city rides, and fixed transparent rates with zero surge pricing.',
-        badge: 'Instant Ride Dispatch',
-        badgeColor: 'bg-red-600 text-white',
-        mediaUrl: 'img/ad1.jpg',
-        features: ['🚖 Instant Dispatch', '⏱️ ~3 Min Arrival', '💳 Card & Cash', '📍 GPS Tracked']
-      },
-      {
-        id: 'taxi-ad-2',
-        title: '24/7 Airport & Intercity Transfers',
-        tagline: 'Spacious luggage capacity, comfortable sedans, and executive VIP transport on demand.',
-        badge: 'Airport Express Service',
-        badgeColor: 'bg-red-600 text-white',
-        mediaUrl: 'img/ad2.jpg',
-        features: ['✈️ Flight Tracking', '🧳 Luggage Assistance', '👥 Group Shuttles', '⭐ Top Rated Drivers']
-      },
-      {
-        id: 'taxi-ad-3',
-        title: 'Amber OnTime Premium Fleet',
-        tagline: 'Licensed professional drivers, sanitized vehicles, and live SMS ride tracking.',
-        badge: 'Zero Surge • Fixed Fares',
-        badgeColor: 'bg-red-600 text-white',
-        mediaUrl: 'img/ad3.jpg',
-        features: ['🔒 Verified Drivers', '📱 SMS Status Alert', '🧾 Printed Receipt', '❄️ Climate Controlled']
-      },
-      {
-        id: 'taxi-ad-4',
-        title: 'Tap Screen to Begin Booking',
-        tagline: 'Select your destination on our self-service touch kiosk and get your taxi ticket immediately.',
-        badge: 'Self-Service Kiosk',
-        badgeColor: 'bg-red-600 text-white',
-        mediaUrl: 'img/ad4.jpg',
-        features: ['⚡ 3 Simple Steps', '🗺️ Interactive Map', '🏷️ Transparent Pricing', '📲 Direct Driver Contact']
-      }
-    ];
-
+    // Slides loaded dynamically from server / user uploads
     this.slides = this.loadSlides();
     this.init();
 
@@ -77,14 +38,18 @@ class AdsEngine {
       const stored = localStorage.getItem('kiosk_ads');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].tagline) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy hardcoded slides so ONLY user-added ads display
+          const userAds = parsed.filter(s => s && s.id && !s.id.startsWith('taxi-ad'));
+          if (userAds.length > 0) {
+            return userAds;
+          }
         }
       }
     } catch (e) {
       console.warn('Failed to load stored ads:', e);
     }
-    return this.defaultSlides;
+    return [];
   }
 
   saveSlides(slides) {
@@ -122,17 +87,14 @@ class AdsEngine {
         const normalized = data.map((item, idx) => ({
           id: item.id || `remote-ad-${idx}`,
           type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
-          title: item.title || 'Amber OnTime',
-          tagline: item.tagline || 'Instant ride dispatch & airport transfers',
-          badge: item.badge || 'Featured',
-          badgeColor: item.badgeColor || 'bg-red-600 text-white',
-          mediaUrl: item.mediaUrl || item.imageUrl || item.image || `img/ad${(idx % 4) + 1}.jpg`,
-          features: item.features || []
+          title: item.title || 'Advertisement',
+          mediaUrl: item.mediaUrl || item.imageUrl || item.image || '',
+          qrCodeUrl: item.qrCodeUrl || item.qrImage || item.qr || ''
         }));
 
         // Compare if slides have changed to avoid interrupting a running slide
-        const currentSummary = this.slides.map(s => `${s.id}-${s.mediaUrl}`).join('|');
-        const newSummary = normalized.map(s => `${s.id}-${s.mediaUrl}`).join('|');
+        const currentSummary = this.slides.map(s => `${s.id}-${s.mediaUrl}-${s.qrCodeUrl}`).join('|');
+        const newSummary = normalized.map(s => `${s.id}-${s.mediaUrl}-${s.qrCodeUrl}`).join('|');
 
         if (currentSummary !== newSummary || this.slides.length !== normalized.length) {
           const wasPlaying = this.isPlaying;
@@ -183,6 +145,24 @@ class AdsEngine {
     this.slidesContainer.innerHTML = '';
     if (this.indicatorsContainer) this.indicatorsContainer.innerHTML = '';
 
+    if (!this.slides || this.slides.length === 0) {
+      const slideEl = document.createElement('div');
+      slideEl.className = 'absolute inset-0 transition-opacity duration-700 ease-in-out opacity-100 z-10';
+      slideEl.id = 'ad-slide-0';
+      slideEl.innerHTML = `
+        <div class="relative w-full h-full overflow-hidden bg-black flex items-center justify-center p-8 md:p-14">
+          <div class="absolute inset-0 bg-gradient-to-br from-slate-950 via-red-950/20 to-black"></div>
+          <div class="relative z-10 max-w-xl text-center space-y-5 p-8 rounded-3xl clear-glass-card shadow-2xl animate-float">
+            <img src="img/logo.png" alt="Amber OnTime" class="w-20 h-20 mx-auto object-contain drop-shadow-xl" />
+            <h1 class="text-3xl md:text-5xl font-black font-display text-white tracking-tight leading-[1.15]">Amber OnTime</h1>
+            <p class="text-base md:text-xl text-white/90 font-medium">Touch screen to book your taxi now</p>
+          </div>
+        </div>
+      `;
+      this.slidesContainer.appendChild(slideEl);
+      return;
+    }
+
     this.slides.forEach((slide, index) => {
       const slideEl = document.createElement('div');
       slideEl.className = `absolute inset-0 transition-opacity duration-700 ease-in-out ${index === 0 ? 'opacity-100 z-10' : 'opacity-0 z-0'}`;
@@ -191,7 +171,7 @@ class AdsEngine {
       const isVideo = this.isVideoMedia(slide);
 
       const mediaMarkup = isVideo ? `
-        <!-- 100% Crisp Video Ad -->
+        <!-- 100% Crisp Full-Bleed Video Ad -->
         <video 
           src="${slide.mediaUrl}" 
           autoplay 
@@ -201,7 +181,7 @@ class AdsEngine {
           class="ad-video-element absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
         ></video>
       ` : `
-        <!-- 100% Crisp Background Image -->
+        <!-- 100% Crisp Full-Bleed Background Image -->
         <img 
           src="${slide.mediaUrl}" 
           alt="${slide.title || 'Ad Slide'}" 
@@ -211,47 +191,23 @@ class AdsEngine {
       `;
 
       slideEl.innerHTML = `
-        <div class="relative w-full h-full overflow-hidden bg-black flex items-center justify-between p-8 md:p-14">
+        <div class="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
           
+          <!-- Full-Bleed Media (100% Unobstructed Image / Video) -->
           ${mediaMarkup}
 
-          <!-- Clear Glass Ad Information Card with Prominent Downward Shadow -->
-          <div class="relative z-10 max-w-xl my-auto space-y-4 p-7 md:p-9 rounded-3xl clear-glass-card shadow-2xl animate-float">
-            
-            <!-- Category Badge in Amber OnTime Red -->
-            ${slide.badge ? `
-              <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full ${slide.badgeColor || 'bg-red-600 text-white'} text-xs font-black tracking-wider uppercase shadow-lg shadow-red-600/30">
-                <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                <span>${slide.badge}</span>
+          <!-- Optional QR Code Card (Floating in bottom-right corner) -->
+          ${slide.qrCodeUrl ? `
+            <div class="absolute bottom-28 right-6 md:bottom-28 md:right-10 z-20 flex flex-col items-center gap-2 p-3 rounded-2xl clear-glass-card shadow-2xl animate-float pointer-events-auto">
+              <div class="bg-white p-2 rounded-xl shadow-md">
+                <img src="${slide.qrCodeUrl}" alt="Scan QR Code" class="w-24 h-24 md:w-28 md:h-28 object-contain" />
               </div>
-            ` : ''}
-
-            <!-- Main Headline -->
-            ${slide.title ? `
-              <h1 class="text-3xl md:text-5xl font-black font-display text-white tracking-tight leading-[1.15] text-shadow-strong">
-                ${slide.title}
-              </h1>
-            ` : ''}
-
-            <!-- Tagline / Description -->
-            ${slide.tagline ? `
-              <p class="text-base md:text-xl text-white/95 font-medium leading-relaxed drop-shadow-md">
-                ${slide.tagline}
-              </p>
-            ` : ''}
-
-            <!-- Feature Badges -->
-            ${slide.features && slide.features.length > 0 ? `
-              <div class="flex flex-wrap gap-2 pt-2">
-                ${slide.features.map(f => `
-                  <span class="px-3.5 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-xs font-bold text-white shadow-md">
-                    ${f}
-                  </span>
-                `).join('')}
-              </div>
-            ` : ''}
-
-          </div>
+              <span class="text-[11px] font-bold text-white/95 uppercase tracking-wider font-display drop-shadow-md flex items-center gap-1.5">
+                <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                <span>Scan with Phone</span>
+              </span>
+            </div>
+          ` : ''}
 
         </div>
       `;
