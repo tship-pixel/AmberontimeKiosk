@@ -383,6 +383,10 @@ No ad impressions recorded yet.
     delete clientHeaders['referer'];
     delete clientHeaders['origin'];
     delete clientHeaders['accept-encoding'];
+    delete clientHeaders['x-forwarded-for'];
+    delete clientHeaders['x-forwarded-host'];
+    delete clientHeaders['x-forwarded-proto'];
+    delete clientHeaders['x-real-ip'];
 
     const mapsOptions = {
       hostname: targetHost,
@@ -405,9 +409,8 @@ No ad impressions recorded yet.
       req.on('end', () => {
         let body = Buffer.concat(chunks).toString('utf8');
         
-        // Rewrite any localhost / client URLs inside the payload to amberontime.com/kiosk
-        body = body.replace(/http:\/\/localhost(?::\d+)?\/[^\s\"']*/g, 'https://amberontime.com/kiosk')
-                   .replace(/http:\/\/127\.0\.0\.1(?::\d+)?\/[^\s\"']*/g, 'https://amberontime.com/kiosk')
+        // Universally rewrite any non-amberontime client URLs in payload (localhost, onrender, custom domain) to amberontime.com/kiosk
+        body = body.replace(/https?:\/\/(?!amberontime\.com)[^\s\"']+/g, 'https://amberontime.com/kiosk')
                    .replace(/file:\/\/[^\s\"']*/g, 'https://amberontime.com/kiosk');
 
         mapsOptions.headers['content-length'] = Buffer.byteLength(body);
@@ -430,6 +433,7 @@ No ad impressions recorded yet.
       });
       return;
     }
+
 
     const mapsReq = https.request(mapsOptions, (mapsRes) => {
       const headers = { ...mapsRes.headers };
@@ -572,18 +576,30 @@ No ad impressions recorded yet.
         } else if (input && typeof input.url === 'string') {
           input = new Request(rewriteUrl(input.url), input);
         }
+        if (init && typeof init.body === 'string') {
+          init.body = init.body.replace(/https?:\\/\\/(?!amberontime\\.com)[^\\s\\"']+/g, 'https://amberontime.com/kiosk');
+        }
         return origFetch.call(this, input, init);
       };
     }
     if (window.XMLHttpRequest) {
       var origOpen = XMLHttpRequest.prototype.open;
+      var origSend = XMLHttpRequest.prototype.send;
       XMLHttpRequest.prototype.open = function(method, url) {
+        this._isMapsRpc = typeof url === 'string' && (url.includes('proxy-maps') || url.includes('googleapis.com'));
         url = rewriteUrl(url);
         return origOpen.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function(body) {
+        if (this._isMapsRpc && typeof body === 'string') {
+          body = body.replace(/https?:\\/\\/(?!amberontime\\.com)[^\\s\\"']+/g, 'https://amberontime.com/kiosk');
+        }
+        return origSend.call(this, body);
       };
     }
   })();
 </script>`;
+
 
       const bridgeScript = `
 <script>
