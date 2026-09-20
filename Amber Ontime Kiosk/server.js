@@ -406,6 +406,9 @@ No ad impressions recorded yet.
     const fileSize = stat.size;
     const range = req.headers.range;
 
+    const isHtmlOrJs = extname === '.html' || extname === '.js' || extname === '.json';
+    const cacheHeader = isHtmlOrJs ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400';
+
     // Support HTTP Range requests for smooth video playback & seeking
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -418,6 +421,8 @@ No ad impressions recorded yet.
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
         'Content-Type': contentType,
+        'Cache-Control': cacheHeader,
+        'Access-Control-Allow-Origin': '*'
       };
       res.writeHead(206, head);
       file.pipe(res);
@@ -427,6 +432,8 @@ No ad impressions recorded yet.
         'Content-Length': fileSize,
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
+        'Cache-Control': cacheHeader,
+        'Access-Control-Allow-Origin': '*'
       };
       res.writeHead(200, head);
       fs.createReadStream(localFilePath).pipe(res);
@@ -659,6 +666,9 @@ No ad impressions recorded yet.
     delete headers['x-frame-options'];
     delete headers['content-security-policy'];
     delete headers['content-security-policy-report-only'];
+    delete headers['cross-origin-opener-policy'];
+    delete headers['cross-origin-embedder-policy'];
+    delete headers['cross-origin-resource-policy'];
     headers['access-control-allow-origin'] = '*';
     headers['permissions-policy'] = 'geolocation=*, camera=*, microphone=*';
 
