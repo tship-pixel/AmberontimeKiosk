@@ -68,7 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
         effectiveSrc = 'http://localhost:3000/proxy-kiosk';
       }
 
-      kioskIframe.src = effectiveSrc;
+      const currentSrcAttr = kioskIframe.getAttribute('src') || '';
+      const currentSrcProp = kioskIframe.src || '';
+      if (currentSrcAttr !== effectiveSrc && !currentSrcProp.endsWith(effectiveSrc)) {
+        kioskIframe.src = effectiveSrc;
+      }
     }
 
     if (currentUrlDisplay) {
@@ -139,6 +143,13 @@ document.addEventListener('DOMContentLoaded', () => {
       kioskApp.classList.remove('hidden');
       kioskApp.classList.remove('fade-out');
       kioskApp.classList.add('fade-in');
+
+      // Trigger map resize if iframe is active
+      try {
+        if (kioskIframe && kioskIframe.contentWindow) {
+          kioskIframe.contentWindow.dispatchEvent(new Event('resize'));
+        }
+      } catch (_) {}
 
       // Start Idle Monitoring
       idleTimer.start();

@@ -9,6 +9,7 @@ const TARGET_HOST = 'amberontime.com';
 const ADS_JSON_PATH = path.join(__dirname, 'ads.json');
 const AD_LOG_PATH = path.join(__dirname, 'ad_analytics_log.txt');
 const AD_STATS_PATH = path.join(__dirname, 'ad_stats.json');
+const KIOSKS_JSON_PATH = path.join(__dirname, 'kiosks.json');
 const IMG_DIR = path.join(__dirname, 'img');
 
 // Ensure img directory exists
@@ -46,6 +47,87 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // ==========================================
+  // API ROUTE 0: GET /api/kiosks (List all Kiosks)
+  // ==========================================
+  if ((parsedUrl === '/api/kiosks' || parsedUrl === '/kiosks.json') && req.method === 'GET') {
+    if (!fs.existsSync(KIOSKS_JSON_PATH)) {
+      fs.writeFileSync(KIOSKS_JSON_PATH, '[]', 'utf8');
+    }
+    fs.readFile(KIOSKS_JSON_PATH, 'utf8', (err, data) => {
+      if (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([]));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data && data.trim() ? data : '[]');
+    });
+    return;
+  }
+
+  // ==========================================
+  // API ROUTE 0B: POST /api/kiosks (Create / Update Kiosk)
+  // ==========================================
+  if (parsedUrl === '/api/kiosks' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks).toString('utf8');
+        const payload = JSON.parse(body);
+        let kiosks = [];
+        if (fs.existsSync(KIOSKS_JSON_PATH)) {
+          try { kiosks = JSON.parse(fs.readFileSync(KIOSKS_JSON_PATH, 'utf8')); } catch (_) { kiosks = []; }
+        }
+
+        if (payload.id) {
+          const index = kiosks.findIndex(k => k.id === payload.id);
+          if (index !== -1) {
+            kiosks[index] = { ...kiosks[index], ...payload, updatedAt: new Date().toISOString() };
+          } else {
+            kiosks.unshift({ ...payload, id: payload.id || `kiosk-${Date.now()}`, createdAt: new Date().toISOString() });
+          }
+        } else {
+          const newKiosk = {
+            id: `kiosk-${Date.now()}`,
+            name: payload.name || 'New Kiosk',
+            location: payload.location || 'Default Location',
+            link: payload.link || 'http://localhost:3000',
+            status: payload.status || 'online',
+            description: payload.description || '',
+            createdAt: new Date().toISOString()
+          };
+          kiosks.unshift(newKiosk);
+        }
+
+        fs.writeFileSync(KIOSKS_JSON_PATH, JSON.stringify(kiosks, null, 2));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, kiosks }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // ==========================================
+  // API ROUTE 0C: DELETE /api/kiosks/:id (Delete Kiosk)
+  // ==========================================
+  if (parsedUrl.startsWith('/api/kiosks/') && req.method === 'DELETE') {
+    const idToDelete = parsedUrl.replace('/api/kiosks/', '');
+    let kiosks = [];
+    if (fs.existsSync(KIOSKS_JSON_PATH)) {
+      try { kiosks = JSON.parse(fs.readFileSync(KIOSKS_JSON_PATH, 'utf8')); } catch (_) { kiosks = []; }
+    }
+    const filtered = kiosks.filter(k => k.id !== idToDelete);
+    fs.writeFileSync(KIOSKS_JSON_PATH, JSON.stringify(filtered, null, 2));
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, kiosks: filtered }));
     return;
   }
 
@@ -301,6 +383,18 @@ No ad impressions recorded yet.
   }
 
   // ==========================================
+  // ROUTE ALIASES: /main, /hub, /kiosks -> Main/main.html
+  // ==========================================
+  if (parsedUrl === '/main' || parsedUrl === '/Main' || parsedUrl === '/hub' || parsedUrl === '/kiosks') {
+    const mainHtmlPath = path.join(__dirname, 'Main', 'main.html');
+    if (fs.existsSync(mainHtmlPath)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      fs.createReadStream(mainHtmlPath).pipe(res);
+      return;
+    }
+  }
+
+  // ==========================================
   // STATIC FILES & VIDEO STREAMING (index.html, img/*, css/*, js/*)
   // ==========================================
   const localFilePath = path.join(__dirname, parsedUrl === '/' ? 'index.html' : parsedUrl);
@@ -343,40 +437,43 @@ No ad impressions recorded yet.
   // ==========================================
   // GOOGLE MAPS PROXY (Ensures Google Maps always loads with valid referer & domain)
   // ==========================================
-  if (
-    parsedUrl.startsWith('/proxy-maps') || 
-    parsedUrl.startsWith('/proxy-gstatic') || 
-    parsedUrl.startsWith('/proxy-places') ||
-    parsedUrl.startsWith('/proxy-khms0') ||
-    parsedUrl.startsWith('/proxy-khms1') ||
-    parsedUrl.startsWith('/proxy-mts0') ||
-    parsedUrl.startsWith('/proxy-mts1')
-  ) {
-    let targetHost = 'maps.googleapis.com';
-    let mapsPath = req.url;
+  const mapsProxyMap = {
+    '/proxy-maps': 'maps.googleapis.com',
+    '/proxy-gstatic': 'maps.gstatic.com',
+    '/proxy-places': 'places.googleapis.com',
+    '/proxy-routes': 'routes.googleapis.com',
+    '/proxy-geocode': 'geocode.googleapis.com',
+    '/proxy-khms0': 'khms0.googleapis.com',
+    '/proxy-khms1': 'khms1.googleapis.com',
+    '/proxy-khms2': 'khms2.googleapis.com',
+    '/proxy-khms3': 'khms3.googleapis.com',
+    '/proxy-khms': 'khms.googleapis.com',
+    '/proxy-khm0': 'khm0.googleapis.com',
+    '/proxy-khm1': 'khm1.googleapis.com',
+    '/proxy-khm': 'khm.googleapis.com',
+    '/proxy-mts0': 'mts0.googleapis.com',
+    '/proxy-mts1': 'mts1.googleapis.com',
+    '/proxy-mts2': 'mts2.googleapis.com',
+    '/proxy-mts3': 'mts3.googleapis.com',
+    '/proxy-mts': 'mts.googleapis.com',
+    '/proxy-geo0': 'geo0.ggpht.com',
+    '/proxy-geo1': 'geo1.ggpht.com',
+    '/proxy-geo2': 'geo2.ggpht.com',
+    '/proxy-geo3': 'geo3.ggpht.com',
+    '/proxy-lh3': 'lh3.googleusercontent.com',
+    '/proxy-lh4': 'lh4.googleusercontent.com',
+    '/proxy-lh5': 'lh5.googleusercontent.com',
+    '/proxy-lh6': 'lh6.googleusercontent.com',
+    '/proxy-cbks0': 'cbks0.googleapis.com',
+    '/proxy-cbks1': 'cbks1.googleapis.com',
+    '/proxy-streetview': 'streetviewpixels-pa.googleapis.com'
+  };
 
-    if (parsedUrl.startsWith('/proxy-gstatic')) {
-      targetHost = 'maps.gstatic.com';
-      mapsPath = req.url.replace(/^\/proxy-gstatic/, '');
-    } else if (parsedUrl.startsWith('/proxy-places')) {
-      targetHost = 'places.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-places/, '');
-    } else if (parsedUrl.startsWith('/proxy-khms0')) {
-      targetHost = 'khms0.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-khms0/, '');
-    } else if (parsedUrl.startsWith('/proxy-khms1')) {
-      targetHost = 'khms1.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-khms1/, '');
-    } else if (parsedUrl.startsWith('/proxy-mts0')) {
-      targetHost = 'mts0.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-mts0/, '');
-    } else if (parsedUrl.startsWith('/proxy-mts1')) {
-      targetHost = 'mts1.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-mts1/, '');
-    } else {
-      targetHost = 'maps.googleapis.com';
-      mapsPath = req.url.replace(/^\/proxy-maps/, '');
-    }
+  const matchedProxyPrefix = Object.keys(mapsProxyMap).find(p => parsedUrl.startsWith(p));
+
+  if (matchedProxyPrefix) {
+    const targetHost = mapsProxyMap[matchedProxyPrefix];
+    const mapsPath = req.url.replace(new RegExp('^' + matchedProxyPrefix), '') || '/';
 
     const clientHeaders = { ...req.headers };
     delete clientHeaders['host'];
@@ -417,6 +514,8 @@ No ad impressions recorded yet.
 
         const mapsReq = https.request(mapsOptions, (mapsRes) => {
           const headers = { ...mapsRes.headers };
+          delete headers['x-frame-options'];
+          delete headers['content-security-policy'];
           headers['access-control-allow-origin'] = '*';
           res.writeHead(mapsRes.statusCode, headers);
           mapsRes.pipe(res);
@@ -433,7 +532,6 @@ No ad impressions recorded yet.
       });
       return;
     }
-
 
     const mapsReq = https.request(mapsOptions, (mapsRes) => {
       const headers = { ...mapsRes.headers };
@@ -457,10 +555,32 @@ No ad impressions recorded yet.
           text = text.replace(/https?:\/\/maps\.googleapis\.com/g, '/proxy-maps')
                      .replace(/https?:\/\/maps\.gstatic\.com/g, '/proxy-gstatic')
                      .replace(/https?:\/\/places\.googleapis\.com/g, '/proxy-places')
+                     .replace(/https?:\/\/routes\.googleapis\.com/g, '/proxy-routes')
+                     .replace(/https?:\/\/geocode\.googleapis\.com/g, '/proxy-geocode')
                      .replace(/https?:\/\/khms0\.googleapis\.com/g, '/proxy-khms0')
                      .replace(/https?:\/\/khms1\.googleapis\.com/g, '/proxy-khms1')
+                     .replace(/https?:\/\/khms2\.googleapis\.com/g, '/proxy-khms2')
+                     .replace(/https?:\/\/khms3\.googleapis\.com/g, '/proxy-khms3')
+                     .replace(/https?:\/\/khms\.googleapis\.com/g, '/proxy-khms')
+                     .replace(/https?:\/\/khm0\.googleapis\.com/g, '/proxy-khm0')
+                     .replace(/https?:\/\/khm1\.googleapis\.com/g, '/proxy-khm1')
+                     .replace(/https?:\/\/khm\.googleapis\.com/g, '/proxy-khm')
                      .replace(/https?:\/\/mts0\.googleapis\.com/g, '/proxy-mts0')
-                     .replace(/https?:\/\/mts1\.googleapis\.com/g, '/proxy-mts1');
+                     .replace(/https?:\/\/mts1\.googleapis\.com/g, '/proxy-mts1')
+                     .replace(/https?:\/\/mts2\.googleapis\.com/g, '/proxy-mts2')
+                     .replace(/https?:\/\/mts3\.googleapis\.com/g, '/proxy-mts3')
+                     .replace(/https?:\/\/mts\.googleapis\.com/g, '/proxy-mts')
+                     .replace(/https?:\/\/geo0\.ggpht\.com/g, '/proxy-geo0')
+                     .replace(/https?:\/\/geo1\.ggpht\.com/g, '/proxy-geo1')
+                     .replace(/https?:\/\/geo2\.ggpht\.com/g, '/proxy-geo2')
+                     .replace(/https?:\/\/geo3\.ggpht\.com/g, '/proxy-geo3')
+                     .replace(/https?:\/\/lh3\.googleusercontent\.com/g, '/proxy-lh3')
+                     .replace(/https?:\/\/lh4\.googleusercontent\.com/g, '/proxy-lh4')
+                     .replace(/https?:\/\/lh5\.googleusercontent\.com/g, '/proxy-lh5')
+                     .replace(/https?:\/\/lh6\.googleusercontent\.com/g, '/proxy-lh6')
+                     .replace(/https?:\/\/cbks0\.googleapis\.com/g, '/proxy-cbks0')
+                     .replace(/https?:\/\/cbks1\.googleapis\.com/g, '/proxy-cbks1')
+                     .replace(/https?:\/\/streetviewpixels-pa\.googleapis\.com/g, '/proxy-streetview');
           res.end(text);
         });
         return;
@@ -504,6 +624,7 @@ No ad impressions recorded yet.
     delete headers['content-security-policy'];
     delete headers['content-security-policy-report-only'];
     headers['access-control-allow-origin'] = '*';
+    headers['permissions-policy'] = 'geolocation=*, camera=*, microphone=*';
 
     const contentType = (headers['content-type'] || '').toLowerCase();
     const isHtml = contentType.includes('text/html');
@@ -525,10 +646,32 @@ No ad impressions recorded yet.
       return url.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps')
                 .replace(/^https?:\\/\\/maps\\.gstatic\\.com/, '/proxy-gstatic')
                 .replace(/^https?:\\/\\/places\\.googleapis\\.com/, '/proxy-places')
+                .replace(/^https?:\\/\\/routes\\.googleapis\\.com/, '/proxy-routes')
+                .replace(/^https?:\\/\\/geocode\\.googleapis\\.com/, '/proxy-geocode')
                 .replace(/^https?:\\/\\/khms0\\.googleapis\\.com/, '/proxy-khms0')
                 .replace(/^https?:\\/\\/khms1\\.googleapis\\.com/, '/proxy-khms1')
+                .replace(/^https?:\\/\\/khms2\\.googleapis\\.com/, '/proxy-khms2')
+                .replace(/^https?:\\/\\/khms3\\.googleapis\\.com/, '/proxy-khms3')
+                .replace(/^https?:\\/\\/khms\\.googleapis\\.com/, '/proxy-khms')
+                .replace(/^https?:\\/\\/khm0\\.googleapis\\.com/, '/proxy-khm0')
+                .replace(/^https?:\\/\\/khm1\\.googleapis\\.com/, '/proxy-khm1')
+                .replace(/^https?:\\/\\/khm\\.googleapis\\.com/, '/proxy-khm')
                 .replace(/^https?:\\/\\/mts0\\.googleapis\\.com/, '/proxy-mts0')
-                .replace(/^https?:\\/\\/mts1\\.googleapis\\.com/, '/proxy-mts1');
+                .replace(/^https?:\\/\\/mts1\\.googleapis\\.com/, '/proxy-mts1')
+                .replace(/^https?:\\/\\/mts2\\.googleapis\\.com/, '/proxy-mts2')
+                .replace(/^https?:\\/\\/mts3\\.googleapis\\.com/, '/proxy-mts3')
+                .replace(/^https?:\\/\\/mts\\.googleapis\\.com/, '/proxy-mts')
+                .replace(/^https?:\\/\\/geo0\\.ggpht\\.com/, '/proxy-geo0')
+                .replace(/^https?:\\/\\/geo1\\.ggpht\\.com/, '/proxy-geo1')
+                .replace(/^https?:\\/\\/geo2\\.ggpht\\.com/, '/proxy-geo2')
+                .replace(/^https?:\\/\\/geo3\\.ggpht\\.com/, '/proxy-geo3')
+                .replace(/^https?:\\/\\/lh3\\.googleusercontent\\.com/, '/proxy-lh3')
+                .replace(/^https?:\\/\\/lh4\\.googleusercontent\\.com/, '/proxy-lh4')
+                .replace(/^https?:\\/\\/lh5\\.googleusercontent\\.com/, '/proxy-lh5')
+                .replace(/^https?:\\/\\/lh6\\.googleusercontent\\.com/, '/proxy-lh6')
+                .replace(/^https?:\\/\\/cbks0\\.googleapis\\.com/, '/proxy-cbks0')
+                .replace(/^https?:\\/\\/cbks1\\.googleapis\\.com/, '/proxy-cbks1')
+                .replace(/^https?:\\/\\/streetviewpixels-pa\\.googleapis\\.com/, '/proxy-streetview');
     }
 
     var origCreateElement = document.createElement;
