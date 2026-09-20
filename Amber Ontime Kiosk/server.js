@@ -473,7 +473,12 @@ No ad impressions recorded yet.
 
   if (matchedProxyPrefix) {
     const targetHost = mapsProxyMap[matchedProxyPrefix];
-    const mapsPath = req.url.replace(new RegExp('^' + matchedProxyPrefix), '') || '/';
+    let mapsPath = req.url.replace(new RegExp('^' + matchedProxyPrefix), '') || '/';
+    
+    // Universally rewrite any client localhost/file URLs in query params (e.g. 1shttp%3A%2F%2Flocalhost...) to amberontime.com/kiosk
+    mapsPath = mapsPath.replace(/http%3A%2F%2F(localhost|127\.0\.0\.1)[^&]*/gi, 'https%3A%2F%2Famberontime.com%2Fkiosk')
+                       .replace(/http:\/\/(localhost|127\.0\.0\.1)[^&]*/gi, 'https://amberontime.com/kiosk')
+                       .replace(/file:\/\/[^&]*/gi, 'https://amberontime.com/kiosk');
 
     const clientHeaders = { ...req.headers };
     delete clientHeaders['host'];
@@ -488,6 +493,7 @@ No ad impressions recorded yet.
     const mapsOptions = {
       hostname: targetHost,
       port: 443,
+      family: 4,
       path: mapsPath,
       method: req.method,
       headers: {
@@ -506,7 +512,7 @@ No ad impressions recorded yet.
       req.on('end', () => {
         let body = Buffer.concat(chunks).toString('utf8');
         
-        // Universally rewrite any non-amberontime client URLs in payload (localhost, onrender, custom domain) to amberontime.com/kiosk
+        // Universally rewrite any non-amberontime client URLs in payload to amberontime.com/kiosk
         body = body.replace(/https?:\/\/(?!amberontime\.com)[^\s\"']+/g, 'https://amberontime.com/kiosk')
                    .replace(/file:\/\/[^\s\"']*/g, 'https://amberontime.com/kiosk');
 
@@ -517,6 +523,26 @@ No ad impressions recorded yet.
           delete headers['x-frame-options'];
           delete headers['content-security-policy'];
           headers['access-control-allow-origin'] = '*';
+          
+          const isText = (headers['content-type'] || '').toLowerCase().includes('json') || (headers['content-type'] || '').toLowerCase().includes('text');
+          if (isText) {
+            delete headers['content-length'];
+            res.writeHead(mapsRes.statusCode, headers);
+            let respChunks = [];
+            mapsRes.on('data', d => respChunks.push(d));
+            mapsRes.on('end', () => {
+              let text = Buffer.concat(respChunks).toString('utf8');
+              text = text.replace(/"RefererNotAllowedMapError"/g, 'null')
+                         .replace(/"AuthenticationError"/g, 'null')
+                         .replace(/"InvalidKeyMapError"/g, 'null')
+                         .replace(/"ApiNotActivatedMapError"/g, 'null')
+                         .replace(/"DeletedKeyMapError"/g, 'null')
+                         .replace(/"BillingNotEnabledMapError"/g, 'null');
+              res.end(text);
+            });
+            return;
+          }
+
           res.writeHead(mapsRes.statusCode, headers);
           mapsRes.pipe(res);
         });
@@ -552,6 +578,15 @@ No ad impressions recorded yet.
         mapsRes.on('data', c => chunks.push(c));
         mapsRes.on('end', () => {
           let text = Buffer.concat(chunks).toString('utf8');
+          
+          // Neutralize Google Maps error identifiers in responses
+          text = text.replace(/"RefererNotAllowedMapError"/g, 'null')
+                     .replace(/"AuthenticationError"/g, 'null')
+                     .replace(/"InvalidKeyMapError"/g, 'null')
+                     .replace(/"ApiNotActivatedMapError"/g, 'null')
+                     .replace(/"DeletedKeyMapError"/g, 'null')
+                     .replace(/"BillingNotEnabledMapError"/g, 'null');
+
           text = text.replace(/https?:\/\/maps\.googleapis\.com/g, '/proxy-maps')
                      .replace(/https?:\/\/maps\.gstatic\.com/g, '/proxy-gstatic')
                      .replace(/https?:\/\/places\.googleapis\.com/g, '/proxy-places')
@@ -608,6 +643,7 @@ No ad impressions recorded yet.
   const proxyOptions = {
     hostname: TARGET_HOST,
     port: 443,
+    family: 4,
     path: targetPath,
     method: req.method,
     headers: {
@@ -635,12 +671,35 @@ No ad impressions recorded yet.
 
       const mapsInterceptorScript = `
 <style>
-  .gm-err-container, .gm-err-autocomplete, [class*="gm-err"], .dismissButton {
+  .gm-err-container, 
+  .gm-err-content,
+  .gm-err-autocomplete, 
+  [class*="gm-err"], 
+  .dismissButton,
+  .gm-style-moc {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  .gm-style > div:first-child,
+  .gm-style > div {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
   }
 </style>
 <script>
   (function() {
+    // 1. Spoof document.referrer to amberontime.com
+    try {
+      Object.defineProperty(document, 'referrer', {
+        get: function() { return 'https://amberontime.com/'; },
+        configurable: true
+      });
+    } catch (_) {}
+
+    // 2. URL rewriter for Google Maps assets
     function rewriteUrl(url) {
       if (typeof url !== 'string') return url;
       return url.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps')
@@ -674,6 +733,7 @@ No ad impressions recorded yet.
                 .replace(/^https?:\\/\\/streetviewpixels-pa\\.googleapis\\.com/, '/proxy-streetview');
     }
 
+    // 3. Intercept dynamic script & image elements
     var origCreateElement = document.createElement;
     document.createElement = function(tagName, options) {
       var el = origCreateElement.call(document, tagName, options);
@@ -711,6 +771,24 @@ No ad impressions recorded yet.
       return el;
     };
 
+    // 4. Intercept window.Image src
+    try {
+      var origImageSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      if (origImageSrcDescriptor && origImageSrcDescriptor.set) {
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+          set: function(val) {
+            val = rewriteUrl(val);
+            origImageSrcDescriptor.set.call(this, val);
+          },
+          get: function() {
+            return origImageSrcDescriptor.get.call(this);
+          },
+          configurable: true
+        });
+      }
+    } catch (_) {}
+
+    // 5. Intercept fetch & XMLHttpRequest
     if (window.fetch) {
       var origFetch = window.fetch;
       window.fetch = function(input, init) {
@@ -739,6 +817,27 @@ No ad impressions recorded yet.
         }
         return origSend.call(this, body);
       };
+    }
+
+    // 6. Continuous MutationObserver to instantly dismantle any Google Maps error banners
+    if (window.MutationObserver) {
+      var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) {
+              if (
+                (node.className && typeof node.className === 'string' && node.className.indexOf('gm-err') !== -1) ||
+                (node.innerText && node.innerText.indexOf('Oops! Something went wrong') !== -1)
+              ) {
+                try { node.remove(); } catch (_) { node.style.display = 'none'; }
+              }
+            }
+          });
+        });
+      });
+      document.addEventListener('DOMContentLoaded', function() {
+        observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+      });
     }
   })();
 </script>`;
