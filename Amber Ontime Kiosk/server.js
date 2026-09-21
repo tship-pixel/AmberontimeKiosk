@@ -592,7 +592,13 @@ No ad impressions recorded yet.
                      .replace(/"InvalidKeyMapError"/g, 'null')
                      .replace(/"ApiNotActivatedMapError"/g, 'null')
                      .replace(/"DeletedKeyMapError"/g, 'null')
-                     .replace(/"BillingNotEnabledMapError"/g, 'null');
+                     .replace(/"BillingNotEnabledMapError"/g, 'null')
+                     .replace(/onError:\s*async\s*\(([a-z]+),\s*([a-z]+)\)\s*=>\s*\{\s*([a-z]+)\.rj\s*=\s*3;/g, 'onError:async($1,$2)=>{$3.rj=2;')
+                     .replace(/this\.message\s*=\s*"Oops! Something went wrong\.";/g, 'this.message="";')
+                     .replace(/this\.qh\s*=\s*"Please see the developer console for technical details\.";/g, 'this.qh="";')
+                     .replace(/<gmp-internal-request-error-text><\/gmp-internal-request-error-text>/g, '')
+                     .replace(/case 3:\s*var a\s*=\s*this\.nz\(\);/g, 'case 3:var a=this.qt();')
+                     .replace(/case 3:\s*a\s*=\s*this\.nz\(\);/g, 'case 3:a=this.qt();');
 
           text = text.replace(/https?:\/\/maps\.googleapis\.com/g, '/proxy-maps')
                      .replace(/https?:\/\/maps\.gstatic\.com/g, '/proxy-gstatic')
@@ -681,6 +687,8 @@ No ad impressions recorded yet.
 
       const mapsInterceptorScript = `
 <style>
+  gmp-internal-request-error-text,
+  gmp-internal-dialog,
   .gm-err-container, 
   .gm-err-content,
   .gm-err-autocomplete, 
@@ -691,6 +699,8 @@ No ad impressions recorded yet.
     visibility: hidden !important;
     opacity: 0 !important;
     pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
   .gm-style > div:first-child,
   .gm-style > div {
@@ -701,6 +711,18 @@ No ad impressions recorded yet.
 </style>
 <script>
   (function() {
+    // 0. Define empty gmp-internal-request-error-text custom element
+    if (window.customElements && !window.customElements.get('gmp-internal-request-error-text')) {
+      try {
+        window.customElements.define('gmp-internal-request-error-text', class extends HTMLElement {
+          connectedCallback() {
+            this.style.display = 'none';
+            try { this.remove(); } catch (_) {}
+          }
+        });
+      } catch (_) {}
+    }
+
     // 1. Spoof document.referrer to amberontime.com
     try {
       Object.defineProperty(document, 'referrer', {
@@ -835,11 +857,18 @@ No ad impressions recorded yet.
         mutations.forEach(function(mutation) {
           mutation.addedNodes.forEach(function(node) {
             if (node.nodeType === 1) {
+              var tag = (node.tagName || '').toLowerCase();
               if (
+                tag === 'gmp-internal-request-error-text' ||
+                tag === 'gmp-internal-dialog' ||
                 (node.className && typeof node.className === 'string' && node.className.indexOf('gm-err') !== -1) ||
                 (node.innerText && node.innerText.indexOf('Oops! Something went wrong') !== -1)
               ) {
                 try { node.remove(); } catch (_) { node.style.display = 'none'; }
+              }
+              var internalErr = node.querySelector && node.querySelector('gmp-internal-request-error-text, .gm-err-container, [class*="gm-err"]');
+              if (internalErr) {
+                try { internalErr.remove(); } catch (_) { internalErr.style.display = 'none'; }
               }
             }
           });
