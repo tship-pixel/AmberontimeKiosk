@@ -382,17 +382,7 @@ No ad impressions recorded yet.
     return;
   }
 
-  // ==========================================
-  // ROUTE ALIASES: /main, /hub, /kiosks -> Main/main.html
-  // ==========================================
-  if (parsedUrl === '/main' || parsedUrl === '/Main' || parsedUrl === '/hub' || parsedUrl === '/kiosks') {
-    const mainHtmlPath = path.join(__dirname, 'Main', 'main.html');
-    if (fs.existsSync(mainHtmlPath)) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      fs.createReadStream(mainHtmlPath).pipe(res);
-      return;
-    }
-  }
+
 
   // ==========================================
   // STATIC FILES & VIDEO STREAMING (index.html, img/*, css/*, js/*)
@@ -731,9 +721,9 @@ No ad impressions recorded yet.
       });
     } catch (_) {}
 
-    // 2. URL rewriter for Google Maps assets
+    // 2. URL rewriter for all Google Maps domains
     function rewriteUrl(url) {
-      if (typeof url !== 'string') return url;
+      if (!url || typeof url !== 'string') return url;
       return url.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps')
                 .replace(/^https?:\\/\\/maps\\.gstatic\\.com/, '/proxy-gstatic')
                 .replace(/^https?:\\/\\/places\\.googleapis\\.com/, '/proxy-places')
@@ -765,62 +755,103 @@ No ad impressions recorded yet.
                 .replace(/^https?:\\/\\/streetviewpixels-pa\\.googleapis\\.com/, '/proxy-streetview');
     }
 
-    // 3. Intercept dynamic script & image elements
-    var origCreateElement = document.createElement;
-    document.createElement = function(tagName, options) {
-      var el = origCreateElement.call(document, tagName, options);
-      if (tagName && typeof tagName === 'string') {
-        var tagLower = tagName.toLowerCase();
-        if (tagLower === 'script' || tagLower === 'img' || tagLower === 'link') {
-          var origSetAttribute = el.setAttribute;
-          el.setAttribute = function(name, val) {
-            if (name && (name.toLowerCase() === 'src' || name.toLowerCase() === 'href')) {
-              val = rewriteUrl(val);
-            }
-            return origSetAttribute.call(el, name, val);
-          };
-          if (tagLower === 'script') {
-            try {
-              var origSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
-              Object.defineProperty(el, 'src', {
-                set: function(val) {
-                  val = rewriteUrl(val);
-                  if (origSrcDescriptor && origSrcDescriptor.set) {
-                    origSrcDescriptor.set.call(el, val);
-                  } else {
-                    el.setAttribute('src', val);
-                  }
-                },
-                get: function() {
-                  return (origSrcDescriptor && origSrcDescriptor.get) ? origSrcDescriptor.get.call(el) : el.getAttribute('src');
-                },
-                configurable: true
-              });
-            } catch (_) {}
-          }
-        }
-      }
-      return el;
-    };
-
-    // 4. Intercept window.Image src
+    // 3. Globally patch HTMLScriptElement.prototype.src
     try {
-      var origImageSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-      if (origImageSrcDescriptor && origImageSrcDescriptor.set) {
-        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      var origScriptSrc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
+      if (origScriptSrc && origScriptSrc.set) {
+        Object.defineProperty(HTMLScriptElement.prototype, 'src', {
           set: function(val) {
-            val = rewriteUrl(val);
-            origImageSrcDescriptor.set.call(this, val);
+            origScriptSrc.set.call(this, rewriteUrl(val));
           },
           get: function() {
-            return origImageSrcDescriptor.get.call(this);
+            return origScriptSrc.get.call(this);
           },
           configurable: true
         });
       }
     } catch (_) {}
 
-    // 5. Intercept fetch & XMLHttpRequest
+    // 4. Globally patch HTMLImageElement.prototype.src
+    try {
+      var origImgSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      if (origImgSrc && origImgSrc.set) {
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+          set: function(val) {
+            origImgSrc.set.call(this, rewriteUrl(val));
+          },
+          get: function() {
+            return origImgSrc.get.call(this);
+          },
+          configurable: true
+        });
+      }
+    } catch (_) {}
+
+    // 5. Globally patch HTMLLinkElement.prototype.href
+    try {
+      var origLinkHref = Object.getOwnPropertyDescriptor(HTMLLinkElement.prototype, 'href');
+      if (origLinkHref && origLinkHref.set) {
+        Object.defineProperty(HTMLLinkElement.prototype, 'href', {
+          set: function(val) {
+            origLinkHref.set.call(this, rewriteUrl(val));
+          },
+          get: function() {
+            return origLinkHref.get.call(this);
+          },
+          configurable: true
+        });
+      }
+    } catch (_) {}
+
+    // 6. Globally patch Element.prototype.setAttribute
+    try {
+      var origSetAttr = Element.prototype.setAttribute;
+      Element.prototype.setAttribute = function(name, val) {
+        if (typeof name === 'string' && (name.toLowerCase() === 'src' || name.toLowerCase() === 'href')) {
+          val = rewriteUrl(val);
+        }
+        return origSetAttr.call(this, name, val);
+      };
+    } catch (_) {}
+
+    // 7. Globally patch Node.prototype.appendChild & insertBefore
+    try {
+      var origAppend = Node.prototype.appendChild;
+      Node.prototype.appendChild = function(child) {
+        if (child && (child.nodeName === 'SCRIPT' || child.nodeName === 'IMG' || child.nodeName === 'LINK')) {
+          if (child.src) child.src = rewriteUrl(child.src);
+          if (child.href) child.href = rewriteUrl(child.href);
+        }
+        return origAppend.call(this, child);
+      };
+      var origInsert = Node.prototype.insertBefore;
+      Node.prototype.insertBefore = function(child, ref) {
+        if (child && (child.nodeName === 'SCRIPT' || child.nodeName === 'IMG' || child.nodeName === 'LINK')) {
+          if (child.src) child.src = rewriteUrl(child.src);
+          if (child.href) child.href = rewriteUrl(child.href);
+        }
+        return origInsert.call(this, child, ref);
+      };
+    } catch (_) {}
+
+    // 8. Patch Trusted Types policies if present
+    try {
+      if (window.trustedTypes && window.trustedTypes.createPolicy) {
+        var origCreatePolicy = window.trustedTypes.createPolicy;
+        window.trustedTypes.createPolicy = function(name, rules) {
+          var safeRules = Object.assign({}, rules);
+          if (safeRules.createScriptURL) {
+            var origScriptFn = safeRules.createScriptURL;
+            safeRules.createScriptURL = function(url) {
+              return rewriteUrl(origScriptFn(url));
+            };
+          }
+          return origCreatePolicy.call(this, name, safeRules);
+        };
+      }
+    } catch (_) {}
+
+    // 9. Intercept fetch & XMLHttpRequest
     if (window.fetch) {
       var origFetch = window.fetch;
       window.fetch = function(input, init) {
@@ -851,7 +882,7 @@ No ad impressions recorded yet.
       };
     }
 
-    // 6. Continuous MutationObserver to instantly dismantle any Google Maps error banners
+    // 10. Continuous MutationObserver to instantly dismantle any Google Maps error banners
     if (window.MutationObserver) {
       var observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
