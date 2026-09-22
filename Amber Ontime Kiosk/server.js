@@ -135,14 +135,17 @@ const server = http.createServer((req, res) => {
   // API ROUTE 1: GET /api/ads or GET /ads.json
   // ==========================================
   if ((parsedUrl === '/api/ads' || parsedUrl === '/ads.json') && req.method === 'GET') {
+    if (!fs.existsSync(ADS_JSON_PATH)) {
+      fs.writeFileSync(ADS_JSON_PATH, '[]', 'utf8');
+    }
     fs.readFile(ADS_JSON_PATH, 'utf8', (err, data) => {
       if (err) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify([]));
+        res.end('[]');
         return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(data);
+      res.end(data && data.trim() ? data : '[]');
     });
     return;
   }
@@ -163,7 +166,13 @@ const server = http.createServer((req, res) => {
         const { title, imageBase64, mediaBase64, videoBase64, filename, type: explicitType, qrBase64, qrUrl } = payload;
         const uploadData = mediaBase64 || videoBase64 || imageBase64;
 
-        let mediaPath = 'img/ad1.jpg'; // default
+        if (!uploadData && !filename) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'No media content provided' }));
+          return;
+        }
+
+        let mediaPath = '';
         let detectedType = explicitType || 'image';
 
         // Save base64 media (image or video) to disk if provided
@@ -188,6 +197,10 @@ const server = http.createServer((req, res) => {
           } else {
             detectedType = 'image';
           }
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Invalid media format' }));
+          return;
         }
 
         // Save base64 QR code image to disk if provided
@@ -219,6 +232,7 @@ const server = http.createServer((req, res) => {
         if (fs.existsSync(ADS_JSON_PATH)) {
           try {
             currentAds = JSON.parse(fs.readFileSync(ADS_JSON_PATH, 'utf8'));
+            if (!Array.isArray(currentAds)) currentAds = [];
           } catch (e) {
             currentAds = [];
           }

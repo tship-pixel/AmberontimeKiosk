@@ -826,7 +826,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Attempt remote deletion if API is available
         try {
           if (slide.id) {
-            await fetch(`/api/ads/${slide.id}`, { method: 'DELETE' }).catch(() => {});
+            const deleteEndpoint = adsEngine.remoteFeedUrl 
+              ? adsEngine.remoteFeedUrl.replace(/\/ads\.json|\/api\/ads$/, `/api/ads/${slide.id}`)
+              : `/api/ads/${slide.id}`;
+            await fetch(deleteEndpoint, { method: 'DELETE' }).catch(() => {});
           }
         } catch (_) {}
 

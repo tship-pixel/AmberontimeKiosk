@@ -41,11 +41,15 @@ class AdsEngine {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          // Filter out legacy hardcoded slides so ONLY user-added ads display
-          const userAds = parsed.filter(s => s && s.id && !s.id.startsWith('taxi-ad'));
-          if (userAds.length > 0) {
-            return userAds;
-          }
+          // Filter out legacy hardcoded/test slides so ONLY user-added ads display
+          const userAds = parsed.filter(s => {
+            if (!s || !s.id) return false;
+            if (s.id.startsWith('taxi-ad')) return false;
+            if (s.id === 'ad-1789493951023' || s.id === 'ad-1789493661455') return false;
+            if (s.mediaUrl && (s.mediaUrl.includes('upload_1789493951016') || s.mediaUrl.includes('upload_1789493661451'))) return false;
+            return true;
+          });
+          return userAds;
         }
       }
     } catch (e) {
@@ -85,14 +89,21 @@ class AdsEngine {
       }
 
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const normalized = data.map((item, idx) => ({
-          id: item.id || `remote-ad-${idx}`,
-          type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
-          title: item.title || 'Advertisement',
-          mediaUrl: item.mediaUrl || item.imageUrl || item.image || '',
-          qrCodeUrl: item.qrCodeUrl || item.qrImage || item.qr || ''
-        }));
+      if (Array.isArray(data)) {
+        const normalized = data
+          .filter(item => {
+            if (!item) return false;
+            if (item.id === 'ad-1789493951023' || item.id === 'ad-1789493661455') return false;
+            if (item.mediaUrl && (item.mediaUrl.includes('upload_1789493951016') || item.mediaUrl.includes('upload_1789493661451'))) return false;
+            return true;
+          })
+          .map((item, idx) => ({
+            id: item.id || `remote-ad-${idx}`,
+            type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
+            title: item.title || 'Advertisement',
+            mediaUrl: item.mediaUrl || item.imageUrl || item.image || '',
+            qrCodeUrl: item.qrCodeUrl || item.qrImage || item.qr || ''
+          }));
 
         // Compare if slides have changed to avoid interrupting a running slide
         const currentSummary = this.slides.map(s => `${s.id}-${s.mediaUrl}-${s.qrCodeUrl}`).join('|');
@@ -103,7 +114,7 @@ class AdsEngine {
           this.slides = normalized;
           localStorage.setItem('kiosk_ads', JSON.stringify(normalized));
           this.renderSlides();
-          if (wasPlaying && !this.isPlaying) {
+          if (wasPlaying && !this.isPlaying && this.slides.length > 0) {
             this.start();
           }
         }
