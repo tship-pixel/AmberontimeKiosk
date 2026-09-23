@@ -1,5 +1,12 @@
 [
   {
+    "id": "ad-1790128822032",
+    "type": "video",
+    "title": "Testing Bunny",
+    "mediaUrl": "img/upload_1790128822030.mp4",
+    "qrCodeUrl": "img/qr_1790128822032.png"
+  },
+  {
     "id": "ad-1790128797243",
     "type": "image",
     "title": "Amber News  ADS",
