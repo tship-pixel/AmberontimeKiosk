@@ -394,9 +394,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderAdminSlidesList();
     loadAdminAdStats();
+    loadServerHealth();
     adminSettingsModal.classList.remove('hidden');
     adminSettingsModal.classList.add('flex');
     lucide.createIcons();
+  }
+
+  const cloudSyncBadge = document.getElementById('cloud-sync-badge');
+  const keepaliveStatus = document.getElementById('keepalive-status');
+  const githubSyncStatus = document.getElementById('github-sync-status');
+  const manualGithubSyncBtn = document.getElementById('manual-github-sync-btn');
+
+  async function loadServerHealth() {
+    if (!cloudSyncBadge) return;
+    try {
+      const healthEndpoint = adsEngine.remoteFeedUrl
+        ? adsEngine.remoteFeedUrl.replace(/\/ads\.json|\/api\/ads$/, '/api/health')
+        : '/api/health';
+
+      const res = await fetch(healthEndpoint);
+      if (!res.ok) throw new Error('Health check unavailable');
+      const data = await res.json();
+
+      if (data.githubSyncActive) {
+        cloudSyncBadge.textContent = 'Cloud Persistence Active';
+        cloudSyncBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        if (githubSyncStatus) {
+          githubSyncStatus.textContent = `Connected (${data.githubRepo || 'GitHub'})`;
+          githubSyncStatus.className = 'font-bold text-emerald-400';
+        }
+      } else {
+        cloudSyncBadge.textContent = 'Local Ephemeral Mode';
+        cloudSyncBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40';
+        if (githubSyncStatus) {
+          githubSyncStatus.textContent = 'Not configured (add GITHUB_TOKEN)';
+          githubSyncStatus.className = 'font-bold text-amber-400';
+        }
+      }
+
+      if (keepaliveStatus) {
+        if (data.keepAliveActive) {
+          keepaliveStatus.textContent = 'Active (24/7 Live)';
+          keepaliveStatus.className = 'font-bold text-emerald-400';
+        } else {
+          keepaliveStatus.textContent = 'Local Dev Mode';
+          keepaliveStatus.className = 'font-bold text-slate-400';
+        }
+      }
+    } catch (_) {
+      if (cloudSyncBadge) {
+        cloudSyncBadge.textContent = 'Offline / Standalone';
+        cloudSyncBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700';
+      }
+    }
+  }
+
+  if (manualGithubSyncBtn) {
+    manualGithubSyncBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (window.soundEngine) window.soundEngine.playTap();
+      manualGithubSyncBtn.disabled = true;
+      manualGithubSyncBtn.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i><span>Syncing...</span>';
+      if (window.lucide) lucide.createIcons();
+
+      try {
+        const syncEndpoint = adsEngine.remoteFeedUrl
+          ? adsEngine.remoteFeedUrl.replace(/\/ads\.json|\/api\/ads$/, '/api/sync/github')
+          : '/api/sync/github';
+        await fetch(syncEndpoint, { method: 'POST' });
+        await adsEngine.fetchRemoteAds();
+        renderAdminSlidesList();
+        loadServerHealth();
+        manualGithubSyncBtn.innerHTML = '<i data-lucide="check" class="w-3 h-3 text-emerald-300"></i><span>Synced!</span>';
+      } catch (err) {
+        manualGithubSyncBtn.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3 text-red-300"></i><span>Failed</span>';
+      }
+      if (window.lucide) lucide.createIcons();
+
+      setTimeout(() => {
+        manualGithubSyncBtn.disabled = false;
+        manualGithubSyncBtn.innerHTML = '<i data-lucide="refresh-cw" class="w-3 h-3"></i><span>Sync from GitHub</span>';
+        if (window.lucide) lucide.createIcons();
+      }, 2500);
+    });
   }
 
   const adminAdStatsContainer = document.getElementById('admin-ad-stats-container');

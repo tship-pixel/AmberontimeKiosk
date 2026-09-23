@@ -6,15 +6,165 @@ const { exec } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
 const TARGET_HOST = 'amberontime.com';
-const ADS_JSON_PATH = path.join(__dirname, 'ads.json');
-const AD_LOG_PATH = path.join(__dirname, 'ad_analytics_log.txt');
-const AD_STATS_PATH = path.join(__dirname, 'ad_stats.json');
-const KIOSKS_JSON_PATH = path.join(__dirname, 'kiosks.json');
+
+// Persistent Data Directory (supports Render Persistent Disks via DATA_DIR)
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const ADS_JSON_PATH = path.join(DATA_DIR, 'ads.json');
+const AD_LOG_PATH = path.join(DATA_DIR, 'ad_analytics_log.txt');
+const AD_STATS_PATH = path.join(DATA_DIR, 'ad_stats.json');
+const KIOSKS_JSON_PATH = path.join(DATA_DIR, 'kiosks.json');
 const IMG_DIR = path.join(__dirname, 'img');
 
-// Ensure img directory exists
+// Ensure directories exist
 if (!fs.existsSync(IMG_DIR)) {
   fs.mkdirSync(IMG_DIR, { recursive: true });
+}
+if (DATA_DIR !== __dirname && !fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// GitHub Auto-Sync Configuration (Persists ads across Render reboots)
+const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim();
+let GITHUB_REPO = (process.env.GITHUB_REPO || 'tship-pixel/AmberontimeKiosk').trim();
+if (GITHUB_REPO.startsWith('https://github.com/')) {
+  GITHUB_REPO = GITHUB_REPO.replace('https://github.com/', '').replace(/\.git$/, '');
+}
+const GITHUB_BRANCH = (process.env.GITHUB_BRANCH || 'main').trim();
+
+// 24/7 Keep-Alive URL (Render automatically sets RENDER_EXTERNAL_URL)
+const RENDER_URL = (process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || process.env.SERVER_URL || '').trim();
+
+// ==========================================
+// GITHUB AUTO-SYNC HELPERS
+// ==========================================
+function githubApiRequest(method, apiPath, body = null) {
+  return new Promise((resolve) => {
+    if (!GITHUB_TOKEN || !GITHUB_REPO) {
+      return resolve({ skipped: true, error: 'GITHUB_TOKEN or GITHUB_REPO not configured' });
+    }
+
+    const postData = body ? JSON.stringify(body) : null;
+    const options = {
+      hostname: 'api.github.com',
+      port: 443,
+      path: `/repos/${GITHUB_REPO}${apiPath}`,
+      method: method,
+      headers: {
+        'User-Agent': 'AmberOnTime-Kiosk-Server',
+        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    };
+
+    if (postData) {
+      options.headers['Content-Type'] = 'application/json';
+      options.headers['Content-Length'] = Buffer.byteLength(postData);
+    }
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve({ status: res.statusCode, data: parsed });
+        } catch (e) {
+          resolve({ status: res.statusCode, raw: data });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('[GitHub API Error]:', err.message);
+      resolve({ error: err.message });
+    });
+
+    if (postData) req.write(postData);
+    req.end();
+  });
+}
+
+// Commit and push a file directly to the GitHub repository
+async function pushFileToGitHub(remotePath, fileBufferOrString, commitMessage = 'Update file [skip ci]') {
+  if (!GITHUB_TOKEN || !GITHUB_REPO) return false;
+  try {
+    const cleanPath = remotePath.replace(/^[\\\/]+/, '').replace(/\\/g, '/');
+    const getRes = await githubApiRequest('GET', `/contents/${cleanPath}?ref=${GITHUB_BRANCH}`);
+    let sha = null;
+    if (getRes && getRes.data && getRes.data.sha) {
+      sha = getRes.data.sha;
+    }
+
+    const buffer = Buffer.isBuffer(fileBufferOrString) ? fileBufferOrString : Buffer.from(fileBufferOrString, 'utf8');
+    const base64Content = buffer.toString('base64');
+    const putBody = {
+      message: commitMessage,
+      content: base64Content,
+      branch: GITHUB_BRANCH
+    };
+    if (sha) putBody.sha = sha;
+
+    const putRes = await githubApiRequest('PUT', `/contents/${cleanPath}`, putBody);
+    if (putRes.status === 200 || putRes.status === 201) {
+      console.log(`[GitHub Sync] Committed ${cleanPath} to ${GITHUB_REPO} on branch ${GITHUB_BRANCH}`);
+      return true;
+    } else {
+      console.warn(`[GitHub Sync] Failed to commit ${cleanPath}:`, putRes.data || putRes.status);
+      return false;
+    }
+  } catch (err) {
+    console.error(`[GitHub Sync Error] for ${remotePath}:`, err.message);
+    return false;
+  }
+}
+
+// Pull latest ads.json from GitHub on startup
+async function pullFromGitHubOnBoot() {
+  if (!GITHUB_TOKEN || !GITHUB_REPO) {
+    console.log(`[GitHub Sync] GITHUB_TOKEN not set. Running in local filesystem mode.`);
+    return;
+  }
+  console.log(`[GitHub Sync] Syncing latest ads.json from GitHub repo: ${GITHUB_REPO}...`);
+  try {
+    const res = await githubApiRequest('GET', `/contents/ads.json?ref=${GITHUB_BRANCH}`);
+    if (res && res.data && res.data.content) {
+      const decoded = Buffer.from(res.data.content, 'base64').toString('utf8');
+      const parsed = JSON.parse(decoded);
+      if (Array.isArray(parsed)) {
+        fs.writeFileSync(ADS_JSON_PATH, JSON.stringify(parsed, null, 2), 'utf8');
+        console.log(`[GitHub Sync] Successfully loaded ${parsed.length} ad(s) from GitHub repository!`);
+      }
+    } else {
+      console.log(`[GitHub Sync] No existing ads.json found in remote repository or empty.`);
+    }
+  } catch (e) {
+    console.warn('[GitHub Sync] Error during boot pull:', e.message);
+  }
+}
+
+// Trigger initial GitHub sync
+pullFromGitHubOnBoot();
+
+// ==========================================
+// 24/7 KEEP-ALIVE ENGINE (Prevents Render Free Sleep)
+// ==========================================
+if (RENDER_URL) {
+  const pingIntervalMs = 10 * 60 * 1000; // Ping every 10 minutes
+  console.log(`[24/7 Keep-Alive] Initialized heartbeat for: ${RENDER_URL} (interval: 10m)`);
+  setInterval(() => {
+    try {
+      const pingUrl = `${RENDER_URL.replace(/\/+$/, '')}/api/health`;
+      const isHttps = pingUrl.startsWith('https');
+      const client = isHttps ? https : http;
+      client.get(pingUrl, (res) => {
+        console.log(`[24/7 Keep-Alive] Self-ping status: ${res.statusCode} at ${new Date().toISOString()}`);
+      }).on('error', (err) => {
+        console.warn(`[24/7 Keep-Alive] Ping failed:`, err.message);
+      });
+    } catch (err) {
+      console.warn(`[24/7 Keep-Alive] Heartbeat error:`, err.message);
+    }
+  }, pingIntervalMs);
 }
 
 const MIME_TYPES = {
@@ -47,6 +197,45 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // ==========================================
+  // API ROUTE -1: GET /api/health & GET /api/ping (Live Heartbeat & Diagnostics)
+  // ==========================================
+  if ((parsedUrl === '/api/health' || parsedUrl === '/api/ping') && req.method === 'GET') {
+    let adsCount = 0;
+    try {
+      if (fs.existsSync(ADS_JSON_PATH)) {
+        adsCount = JSON.parse(fs.readFileSync(ADS_JSON_PATH, 'utf8')).length;
+      }
+    } catch (_) {}
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      uptimeSec: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+      keepAliveActive: !!RENDER_URL,
+      renderUrl: RENDER_URL || null,
+      githubSyncActive: !!(GITHUB_TOKEN && GITHUB_REPO),
+      githubRepo: GITHUB_REPO || null,
+      adsCount: adsCount
+    }));
+    return;
+  }
+
+  // ==========================================
+  // API ROUTE -2: POST /api/sync/github (Force manual sync from GitHub)
+  // ==========================================
+  if (parsedUrl === '/api/sync/github' && req.method === 'POST') {
+    pullFromGitHubOnBoot().then(() => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Synced from GitHub' }));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    });
     return;
   }
 
@@ -240,6 +429,23 @@ const server = http.createServer((req, res) => {
         currentAds.unshift(newAd);
         fs.writeFileSync(ADS_JSON_PATH, JSON.stringify(currentAds, null, 2));
 
+        // Background: Asynchronously commit media file and ads.json to GitHub repository
+        if (GITHUB_TOKEN && GITHUB_REPO) {
+          (async () => {
+            try {
+              if (mediaPath && fs.existsSync(path.join(__dirname, mediaPath))) {
+                await pushFileToGitHub(mediaPath, fs.readFileSync(path.join(__dirname, mediaPath)), `Add ad media: ${newAd.title} [skip ci]`);
+              }
+              if (qrPath && fs.existsSync(path.join(__dirname, qrPath))) {
+                await pushFileToGitHub(qrPath, fs.readFileSync(path.join(__dirname, qrPath)), `Add QR media: ${newAd.title} [skip ci]`);
+              }
+              await pushFileToGitHub('ads.json', fs.readFileSync(ADS_JSON_PATH), `Add ad to ads.json: ${newAd.title} [skip ci]`);
+            } catch (syncErr) {
+              console.warn('[GitHub Sync Async Error]:', syncErr.message);
+            }
+          })();
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, ad: newAd, total: currentAds.length }));
       } catch (err) {
@@ -266,6 +472,11 @@ const server = http.createServer((req, res) => {
     }
     const filtered = currentAds.filter(a => a.id !== idToDelete);
     fs.writeFileSync(ADS_JSON_PATH, JSON.stringify(filtered, null, 2));
+
+    // Background: Asynchronously commit updated ads.json to GitHub
+    if (GITHUB_TOKEN && GITHUB_REPO) {
+      pushFileToGitHub('ads.json', fs.readFileSync(ADS_JSON_PATH), `Delete ad ${idToDelete} from ads.json [skip ci]`).catch(() => {});
+    }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, remaining: filtered.length }));
@@ -402,6 +613,33 @@ No ad impressions recorded yet.
   // STATIC FILES & VIDEO STREAMING (index.html, img/*, css/*, js/*)
   // ==========================================
   const localFilePath = path.join(__dirname, parsedUrl === '/' ? 'index.html' : parsedUrl);
+
+  // If requesting an uploaded media file that isn't on local disk yet, pull from GitHub on demand
+  if ((parsedUrl.startsWith('/img/upload_') || parsedUrl.startsWith('/img/qr_')) && !fs.existsSync(localFilePath) && GITHUB_TOKEN && GITHUB_REPO) {
+    const cleanRelPath = parsedUrl.replace(/^\/+/, '');
+    const rawUrl = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${cleanRelPath}`;
+    const rawReq = https.get(rawUrl, { headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'User-Agent': 'AmberOnTime-Kiosk' } }, (rawRes) => {
+      if (rawRes.statusCode === 200) {
+        const chunks = [];
+        rawRes.on('data', c => chunks.push(c));
+        rawRes.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          try { fs.writeFileSync(localFilePath, buf); } catch (_) {}
+          const extname = String(path.extname(localFilePath)).toLowerCase();
+          const contentType = MIME_TYPES[extname] || 'application/octet-stream';
+          res.writeHead(200, {
+            'Content-Length': buf.length,
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(buf);
+        });
+        return;
+      }
+    });
+    rawReq.on('error', () => {});
+  }
 
   if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile() && !parsedUrl.startsWith('/_next') && parsedUrl !== '/kiosk') {
     const extname = String(path.extname(localFilePath)).toLowerCase();
