@@ -61,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const isHttpServer = window.location.protocol.startsWith('http');
       let effectiveSrc = kioskUrl;
       
-      // If served from a server and target is amberontime.com/kiosk in embedded mode, route through /proxy-kiosk
+      // If served from a server and target is amberontime.com/kiosk in embedded mode, route through /kiosk
       if (isHttpServer && kioskUrl.includes('amberontime.com/kiosk')) {
-        effectiveSrc = '/proxy-kiosk';
+        effectiveSrc = '/kiosk';
       } else if (!isHttpServer && kioskUrl.includes('amberontime.com/kiosk')) {
-        effectiveSrc = 'http://localhost:3000/proxy-kiosk';
+        effectiveSrc = 'http://localhost:3000/kiosk';
       }
 
       const currentSrcAttr = kioskIframe.getAttribute('src') || '';
