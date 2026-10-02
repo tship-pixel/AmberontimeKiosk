@@ -928,18 +928,19 @@ No ad impressions recorded yet.
       res.writeHead(proxyRes.statusCode, headers);
 
       const mapsInterceptorScript = `
-<style>
+<style id="amber-kiosk-fullscreen-theme">
   html, body {
     width: 100% !important;
     height: 100% !important;
     min-height: 100vh !important;
     min-height: 100dvh !important;
-    max-width: 100% !important;
-    max-height: 100% !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
     background-color: #0b0f19 !important;
+    -webkit-font-smoothing: antialiased !important;
   }
   #__next, main {
     width: 100% !important;
@@ -965,6 +966,7 @@ No ad impressions recorded yet.
     background: #0b0f19 !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
   }
   .kiosk_frame__2aLHw {
     position: relative !important;
@@ -974,15 +976,19 @@ No ad impressions recorded yet.
     max-height: 100% !important;
     flex: 1 1 100% !important;
     margin: 0 !important;
+    padding: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     display: flex !important;
     overflow: hidden !important;
-    background: #ffffff !important;
+    background: #0b0f19 !important;
   }
-  @media (min-width: 768px) and (orientation: landscape), (min-width: 992px) {
+
+  /* Widescreen / Landscape Layout (Touch Kiosks & Monitors) */
+  @media (min-width: 800px) and (orientation: landscape), (min-width: 960px) {
     .kiosk_frame__2aLHw {
       flex-direction: row-reverse !important;
+      align-items: stretch !important;
     }
     .kiosk_mapArea__NDdqk {
       flex: 1 1 auto !important;
@@ -990,30 +996,39 @@ No ad impressions recorded yet.
       height: 100% !important;
       min-height: 100% !important;
       position: relative !important;
+      background: #0f172a !important;
     }
     .kiosk_sheet__i2XN2 {
-      flex: 0 0 460px !important;
-      width: 460px !important;
-      max-width: 480px !important;
-      min-width: 400px !important;
+      flex: 0 0 480px !important;
+      width: 480px !important;
+      max-width: 520px !important;
+      min-width: 440px !important;
       height: 100% !important;
       min-height: 100% !important;
       max-height: 100% !important;
-      margin-top: 0 !important;
+      margin: 0 !important;
       border-radius: 0 !important;
       border-right: 1px solid #e2e8f0 !important;
-      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12) !important;
+      box-shadow: 10px 0 35px rgba(0, 0, 0, 0.2) !important;
       display: flex !important;
       flex-direction: column !important;
-      z-index: 10 !important;
+      z-index: 30 !important;
       background: #ffffff !important;
+      overflow: hidden !important;
     }
     .kiosk_sheetHandle__l9EqA {
       display: none !important;
     }
     .kiosk_sheetHeader__PEvZi {
-      padding: 20px 24px 14px !important;
+      padding: 24px 28px 14px !important;
+      border-bottom: 1px solid #f1f5f9 !important;
       cursor: default !important;
+    }
+    .kiosk_title__QYxr8 {
+      font-size: 26px !important;
+      font-weight: 900 !important;
+      color: #0f172a !important;
+      letter-spacing: -0.02em !important;
     }
     .kiosk_toggleCircle__GdV6q {
       display: none !important;
@@ -1022,42 +1037,48 @@ No ad impressions recorded yet.
       flex: 1 1 auto !important;
       height: auto !important;
       overflow-y: auto !important;
-      padding: 8px 24px 28px !important;
+      padding: 16px 28px 32px !important;
       display: flex !important;
       flex-direction: column !important;
+      gap: 12px !important;
     }
     .kiosk_primaryBtn__d2JBu {
       margin-top: auto !important;
     }
   }
-  @media (max-width: 767px), (orientation: portrait) {
+
+  /* Portrait Layout (Vertical Touch Terminals) */
+  @media (max-width: 799px), (orientation: portrait) {
     .kiosk_frame__2aLHw {
       flex-direction: column !important;
     }
     .kiosk_mapArea__NDdqk {
       flex: 1 1 auto !important;
       width: 100% !important;
-      min-height: 38vh !important;
+      min-height: 40vh !important;
       position: relative !important;
+      background: #0f172a !important;
     }
     .kiosk_sheet__i2XN2 {
       flex: 0 0 auto !important;
       width: 100% !important;
-      max-height: 62vh !important;
-      margin-top: -20px !important;
-      border-radius: 24px 24px 0 0 !important;
-      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15) !important;
+      max-height: 64vh !important;
+      margin-top: -24px !important;
+      border-radius: 28px 28px 0 0 !important;
+      box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.2) !important;
       display: flex !important;
       flex-direction: column !important;
-      z-index: 10 !important;
+      z-index: 30 !important;
       background: #ffffff !important;
     }
     .kiosk_form__Il6nW {
       flex: 1 1 auto !important;
       overflow-y: auto !important;
-      padding: 6px 22px 24px !important;
+      padding: 10px 22px 30px !important;
     }
   }
+
+  /* Full Bleed Map Area */
   .kiosk_mapCanvas__5TB5W,
   .kiosk_mapFallback__p0tbj {
     position: absolute !important;
@@ -1066,30 +1087,86 @@ No ad impressions recorded yet.
     height: 100% !important;
   }
   .kiosk_mapLogo__ZmIgP {
-    top: 18px !important;
-    left: 20px !important;
-    height: 34px !important;
-    z-index: 5 !important;
+    top: 22px !important;
+    left: 24px !important;
+    height: 38px !important;
+    z-index: 15 !important;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35)) !important;
+  }
+
+  /* Touch Inputs & Controls */
+  .kiosk_label__1FT24 {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    margin-bottom: 6px !important;
   }
   .kiosk_input__saxrf,
-  .kiosk_phoneInput__h19mW,
+  .kiosk_phoneRow__LH7Bi,
   .kiosk_selectBtn__a3qsj {
-    font-size: 16px !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    border: 1.5px solid #e2e8f0 !important;
+    font-size: 15px !important;
+    color: #0f172a !important;
     height: 52px !important;
+    transition: all 0.15s ease !important;
+  }
+  .kiosk_input__saxrf:focus,
+  .kiosk_phoneRow__LH7Bi:focus-within {
+    border-color: #c40000 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(196, 0, 0, 0.12) !important;
+  }
+  .kiosk_phoneInput__h19mW {
+    font-size: 15px !important;
+    height: 52px !important;
+    color: #0f172a !important;
+  }
+  .kiosk_stepper__UUnzy {
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    border: 1.5px solid #e2e8f0 !important;
+    height: 52px !important;
+  }
+  .kiosk_stepBtn__pxbGW {
+    background: #0f172a !important;
+    border-radius: 9px !important;
+  }
+  .kiosk_estimate__agA4p {
+    border-radius: 14px !important;
+    background: #fff5f5 !important;
+    border: 1.5px solid #fecaca !important;
+    margin: 12px 0 !important;
+    padding: 14px !important;
+  }
+  .kiosk_estLabel__2ZANt {
+    color: #991b1b !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+  }
+  .kiosk_estValue__F70iT {
+    color: #7f1d1d !important;
+    font-weight: 800 !important;
+    font-size: 18px !important;
   }
   .kiosk_primaryBtn__d2JBu {
     height: 56px !important;
     font-size: 18px !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
     border-radius: 14px !important;
-    background-color: #c30008 !important;
+    background: linear-gradient(135deg, #e51a24 0%, #c40000 100%) !important;
     color: #ffffff !important;
+    box-shadow: 0 10px 25px -5px rgba(196, 0, 0, 0.45) !important;
     cursor: pointer !important;
-    transition: transform 0.1s ease, background-color 0.15s ease !important;
+    transition: transform 0.1s ease, box-shadow 0.15s ease !important;
   }
   .kiosk_primaryBtn__d2JBu:active {
     transform: scale(0.98) !important;
+    box-shadow: 0 4px 12px -2px rgba(196, 0, 0, 0.3) !important;
   }
+
+  /* Popups & Error Dialog Suppression */
   gmp-internal-request-error-text,
   gmp-internal-dialog,
   .gm-err-container, 
@@ -1329,9 +1406,32 @@ No ad impressions recorded yet.
       };
     }
 
-    // 10. Continuous MutationObserver to instantly dismantle any Google Maps error banners
+    // 10. Continuous Layout Styler & MutationObserver
+    function enforceKioskFullscreenLayout() {
+      try {
+        document.documentElement.style.setProperty('--kiosk-vh', window.innerHeight + 'px');
+        var page = document.querySelector('.kiosk_page__Fkq8p');
+        if (page) {
+          page.style.setProperty('padding', '0px', 'important');
+          page.style.setProperty('margin', '0px', 'important');
+          page.style.setProperty('height', '100vh', 'important');
+          page.style.setProperty('width', '100vw', 'important');
+          page.style.setProperty('background', '#0b0f19', 'important');
+        }
+        var frame = document.querySelector('.kiosk_frame__2aLHw');
+        if (frame) {
+          frame.style.setProperty('border-radius', '0px', 'important');
+          frame.style.setProperty('box-shadow', 'none', 'important');
+          frame.style.setProperty('width', '100%', 'important');
+          frame.style.setProperty('height', '100%', 'important');
+          frame.style.setProperty('background', '#0b0f19', 'important');
+        }
+      } catch (_) {}
+    }
+
     if (window.MutationObserver) {
       var observer = new MutationObserver(function(mutations) {
+        enforceKioskFullscreenLayout();
         mutations.forEach(function(mutation) {
           mutation.addedNodes.forEach(function(node) {
             if (node.nodeType === 1) {
@@ -1354,8 +1454,14 @@ No ad impressions recorded yet.
       });
       document.addEventListener('DOMContentLoaded', function() {
         observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+        enforceKioskFullscreenLayout();
       });
     }
+
+    // Dynamic layout updates
+    setInterval(enforceKioskFullscreenLayout, 500);
+    window.addEventListener('resize', enforceKioskFullscreenLayout);
+    window.addEventListener('load', enforceKioskFullscreenLayout);
   })();
 </script>`;
 
@@ -1397,8 +1503,10 @@ No ad impressions recorded yet.
       proxyRes.on('end', () => {
         let html = Buffer.concat(bodyChunks).toString('utf8');
         
-        // Inject maps interceptor in head
-        if (html.includes('<head>')) {
+        // Inject maps interceptor & theme at end of head so it takes highest priority
+        if (html.includes('</head>')) {
+          html = html.replace('</head>', mapsInterceptorScript + '</head>');
+        } else if (html.includes('<head>')) {
           html = html.replace('<head>', '<head>' + mapsInterceptorScript);
         } else if (html.includes('<html>')) {
           html = html.replace('<html>', '<html><head>' + mapsInterceptorScript + '</head>');
