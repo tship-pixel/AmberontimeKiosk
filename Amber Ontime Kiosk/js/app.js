@@ -54,6 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Default / Saved Configuration
   let kioskUrl = localStorage.getItem('kiosk_target_url') || 'https://amberontime.com/kiosk';
   let appMode = localStorage.getItem('kiosk_app_mode') || 'web'; // 'web', 'direct', or 'builtin'
+  if (appMode === 'direct') {
+    appMode = 'web';
+    localStorage.setItem('kiosk_app_mode', 'web');
+  }
   let masterPin = localStorage.getItem('kiosk_master_pin') || '1234';
 
   function applyKioskConfig() {
@@ -117,11 +121,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start with Ads Engine Running
   adsEngine.start();
 
+  function requestFullScreenMode() {
+    try {
+      const docEl = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) {
+          docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) {
+          docEl.msRequestFullscreen();
+        }
+      }
+    } catch (_) {}
+  }
+
   // 2. App Wake / Sleep Transitions
   function wakeToApp() {
     if (window.soundEngine) {
       window.soundEngine.playWake();
     }
+
+    // Automatically trigger full-screen mode on touch / user gesture
+    requestFullScreenMode();
 
     // Optional direct top-level navigation if explicitly configured in Admin
     if (appMode === 'direct') {
@@ -131,6 +155,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     applyKioskConfig();
+
+    // Ensure iframe source is set
+    if (kioskIframe) {
+      const isHttpServer = window.location.protocol.startsWith('http');
+      let effectiveSrc = kioskUrl;
+      if (isHttpServer && kioskUrl.includes('amberontime.com/kiosk')) {
+        effectiveSrc = '/kiosk';
+      } else if (!isHttpServer && kioskUrl.includes('amberontime.com/kiosk')) {
+        effectiveSrc = 'http://localhost:3000/kiosk';
+      }
+      if (!kioskIframe.src || kioskIframe.src === 'about:blank' || kioskIframe.src === '') {
+        kioskIframe.src = effectiveSrc;
+      }
+    }
 
     // Hide Ads Screen
     adsScreen.classList.remove('fade-in');
@@ -144,7 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
       kioskApp.classList.remove('fade-out');
       kioskApp.classList.add('fade-in');
 
-      // Trigger map resize if iframe is active
+      // Trigger window & iframe resize so layout and maps fill 100% full screen
+      window.dispatchEvent(new Event('resize'));
       try {
         if (kioskIframe && kioskIframe.contentWindow) {
           kioskIframe.contentWindow.dispatchEvent(new Event('resize'));

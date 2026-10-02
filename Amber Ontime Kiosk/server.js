@@ -839,8 +839,8 @@ No ad impressions recorded yet.
                      .replace(/this\.message\s*=\s*"Oops! Something went wrong\.";/g, 'this.message="";')
                      .replace(/this\.qh\s*=\s*"Please see the developer console for technical details\.";/g, 'this.qh="";')
                      .replace(/<gmp-internal-request-error-text><\/gmp-internal-request-error-text>/g, '')
-                     .replace(/case 3:\s*var a\s*=\s*this\.nz\(\);/g, 'case 3:var a=this.qt();')
-                     .replace(/case 3:\s*a\s*=\s*this\.nz\(\);/g, 'case 3:a=this.qt();');
+                     .replace(/case 3:\s*(?:var\s+)?a\s*=\s*this\.[a-zA-Z0-9_$]+\(\);/g, 'case 3:a=this.av?this.av():"";')
+                     .replace(/oz\(\)\s*\{\s*return\s*\(0,_[a-zA-Z0-9_$]+\.qq\)`[\s\S]*?`\s*\}/g, 'oz(){return(0,_.qq)``}');
 
           text = text.replace(/https?:\/\/maps\.googleapis\.com/g, '/proxy-maps')
                      .replace(/https?:\/\/maps\.gstatic\.com/g, '/proxy-gstatic')
@@ -1244,39 +1244,42 @@ No ad impressions recorded yet.
 
     // 2. URL rewriter for all Google Maps and security domains
     function rewriteUrl(url) {
-      if (!url || typeof url !== 'string') return url;
+      if (!url) return url;
+      if (typeof url !== 'string') {
+        try { url = url.toString(); } catch(_) { return url; }
+      }
       if (url.includes('google.com/recaptcha')) {
         return 'data:application/javascript,window.grecaptcha=window.grecaptcha||{ready:function(f){f&&setTimeout(f,0)},execute:function(){return Promise.resolve("ok")},render:function(){return 0}};';
       }
-      return url.replace(/^https?:\\/\\/maps\\.googleapis\\.com/, '/proxy-maps')
-                .replace(/^https?:\\/\\/maps\\.gstatic\\.com/, '/proxy-gstatic')
-                .replace(/^https?:\\/\\/places\\.googleapis\\.com/, '/proxy-places')
-                .replace(/^https?:\\/\\/routes\\.googleapis\\.com/, '/proxy-routes')
-                .replace(/^https?:\\/\\/geocode\\.googleapis\\.com/, '/proxy-geocode')
-                .replace(/^https?:\\/\\/khms0\\.googleapis\\.com/, '/proxy-khms0')
-                .replace(/^https?:\\/\\/khms1\\.googleapis\\.com/, '/proxy-khms1')
-                .replace(/^https?:\\/\\/khms2\\.googleapis\\.com/, '/proxy-khms2')
-                .replace(/^https?:\\/\\/khms3\\.googleapis\\.com/, '/proxy-khms3')
-                .replace(/^https?:\\/\\/khms\\.googleapis\\.com/, '/proxy-khms')
-                .replace(/^https?:\\/\\/khm0\\.googleapis\\.com/, '/proxy-khm0')
-                .replace(/^https?:\\/\\/khm1\\.googleapis\\.com/, '/proxy-khm1')
-                .replace(/^https?:\\/\\/khm\\.googleapis\\.com/, '/proxy-khm')
-                .replace(/^https?:\\/\\/mts0\\.googleapis\\.com/, '/proxy-mts0')
-                .replace(/^https?:\\/\\/mts1\\.googleapis\\.com/, '/proxy-mts1')
-                .replace(/^https?:\\/\\/mts2\\.googleapis\\.com/, '/proxy-mts2')
-                .replace(/^https?:\\/\\/mts3\\.googleapis\\.com/, '/proxy-mts3')
-                .replace(/^https?:\\/\\/mts\\.googleapis\\.com/, '/proxy-mts')
-                .replace(/^https?:\\/\\/geo0\\.ggpht\\.com/, '/proxy-geo0')
-                .replace(/^https?:\\/\\/geo1\\.ggpht\\.com/, '/proxy-geo1')
-                .replace(/^https?:\\/\\/geo2\\.ggpht\\.com/, '/proxy-geo2')
-                .replace(/^https?:\\/\\/geo3\\.ggpht\\.com/, '/proxy-geo3')
-                .replace(/^https?:\\/\\/lh3\\.googleusercontent\\.com/, '/proxy-lh3')
-                .replace(/^https?:\\/\\/lh4\\.googleusercontent\\.com/, '/proxy-lh4')
-                .replace(/^https?:\\/\\/lh5\\.googleusercontent\\.com/, '/proxy-lh5')
-                .replace(/^https?:\\/\\/lh6\\.googleusercontent\\.com/, '/proxy-lh6')
-                .replace(/^https?:\\/\\/cbks0\\.googleapis\\.com/, '/proxy-cbks0')
-                .replace(/^https?:\\/\\/cbks1\\.googleapis\\.com/, '/proxy-cbks1')
-                .replace(/^https?:\\/\\/streetviewpixels-pa\\.googleapis\\.com/, '/proxy-streetview');
+      return url.replace(/^(?:https?:)?\\/\\/maps\\.googleapis\\.com/i, '/proxy-maps')
+                .replace(/^(?:https?:)?\\/\\/maps\\.gstatic\\.com/i, '/proxy-gstatic')
+                .replace(/^(?:https?:)?\\/\\/places\\.googleapis\\.com/i, '/proxy-places')
+                .replace(/^(?:https?:)?\\/\\/routes\\.googleapis\\.com/i, '/proxy-routes')
+                .replace(/^(?:https?:)?\\/\\/geocode\\.googleapis\\.com/i, '/proxy-geocode')
+                .replace(/^(?:https?:)?\\/\\/khms0\\.googleapis\\.com/i, '/proxy-khms0')
+                .replace(/^(?:https?:)?\\/\\/khms1\\.googleapis\\.com/i, '/proxy-khms1')
+                .replace(/^(?:https?:)?\\/\\/khms2\\.googleapis\\.com/i, '/proxy-khms2')
+                .replace(/^(?:https?:)?\\/\\/khms3\\.googleapis\\.com/i, '/proxy-khms3')
+                .replace(/^(?:https?:)?\\/\\/khms\\.googleapis\\.com/i, '/proxy-khms')
+                .replace(/^(?:https?:)?\\/\\/khm0\\.googleapis\\.com/i, '/proxy-khm0')
+                .replace(/^(?:https?:)?\\/\\/khm1\\.googleapis\\.com/i, '/proxy-khm1')
+                .replace(/^(?:https?:)?\\/\\/khm\\.googleapis\\.com/i, '/proxy-khm')
+                .replace(/^(?:https?:)?\\/\\/mts0\\.googleapis\\.com/i, '/proxy-mts0')
+                .replace(/^(?:https?:)?\\/\\/mts1\\.googleapis\\.com/i, '/proxy-mts1')
+                .replace(/^(?:https?:)?\\/\\/mts2\\.googleapis\\.com/i, '/proxy-mts2')
+                .replace(/^(?:https?:)?\\/\\/mts3\\.googleapis\\.com/i, '/proxy-mts3')
+                .replace(/^(?:https?:)?\\/\\/mts\\.googleapis\\.com/i, '/proxy-mts')
+                .replace(/^(?:https?:)?\\/\\/geo0\\.ggpht\\.com/i, '/proxy-geo0')
+                .replace(/^(?:https?:)?\\/\\/geo1\\.ggpht\\.com/i, '/proxy-geo1')
+                .replace(/^(?:https?:)?\\/\\/geo2\\.ggpht\\.com/i, '/proxy-geo2')
+                .replace(/^(?:https?:)?\\/\\/geo3\\.ggpht\\.com/i, '/proxy-geo3')
+                .replace(/^(?:https?:)?\\/\\/lh3\\.googleusercontent\\.com/i, '/proxy-lh3')
+                .replace(/^(?:https?:)?\\/\\/lh4\\.googleusercontent\\.com/i, '/proxy-lh4')
+                .replace(/^(?:https?:)?\\/\\/lh5\\.googleusercontent\\.com/i, '/proxy-lh5')
+                .replace(/^(?:https?:)?\\/\\/lh6\\.googleusercontent\\.com/i, '/proxy-lh6')
+                .replace(/^(?:https?:)?\\/\\/cbks0\\.googleapis\\.com/i, '/proxy-cbks0')
+                .replace(/^(?:https?:)?\\/\\/cbks1\\.googleapis\\.com/i, '/proxy-cbks1')
+                .replace(/^(?:https?:)?\\/\\/streetviewpixels-pa\\.googleapis\\.com/i, '/proxy-streetview');
     }
 
     // 3. Globally patch HTMLScriptElement.prototype.src
@@ -1483,16 +1486,17 @@ No ad impressions recorded yet.
     // Ensure layout & Google Maps canvas dynamically fill 100% full screen
     function triggerMapLayoutUpdate() {
       try {
-        window.dispatchEvent(new Event('resize'));
         if (window.google && window.google.maps && window.google.maps.event) {
-          window.google.maps.event.trigger(window, 'resize');
+          var mapCanvas = document.querySelector('.kiosk_mapCanvas__5TB5W');
+          if (mapCanvas) {
+            window.dispatchEvent(new Event('resize'));
+          }
         }
       } catch (_) {}
     }
-    setTimeout(triggerMapLayoutUpdate, 300);
-    setTimeout(triggerMapLayoutUpdate, 1000);
-    setTimeout(triggerMapLayoutUpdate, 2500);
-    window.addEventListener('resize', triggerMapLayoutUpdate);
+    setTimeout(triggerMapLayoutUpdate, 600);
+    setTimeout(triggerMapLayoutUpdate, 1500);
+    setTimeout(triggerMapLayoutUpdate, 3000);
     window.addEventListener('orientationchange', triggerMapLayoutUpdate);
   })();
 </script>
