@@ -1,0 +1,25 @@
+# Node modules & dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS & Temp files
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.tmp
+*.log
+
+# Runtime logs and stats
+ad_analytics_log.txt
+ad_stats.json
+
+# Diagnostic scratch files
+find-*.js
+inspect-*.js
+print-*.js
+search-*.js
+test-live-*.js
+test-raw-*.js
+
