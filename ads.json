@@ -1,0 +1,23 @@
+[
+  {
+    "id": "ad-2",
+    "type": "image",
+    "title": "Fast & Reliable Taxi Service",
+    "mediaUrl": "img/ad2.jpg",
+    "qrCodeUrl": null
+  },
+  {
+    "id": "ad-3",
+    "type": "image",
+    "title": "24/7 Islandwide Airport Transfers",
+    "mediaUrl": "img/ad3.jpg",
+    "qrCodeUrl": null
+  },
+  {
+    "id": "ad-4",
+    "type": "image",
+    "title": "Book Your Taxi in Seconds",
+    "mediaUrl": "img/ad4.jpg",
+    "qrCodeUrl": null
+  }
+]
