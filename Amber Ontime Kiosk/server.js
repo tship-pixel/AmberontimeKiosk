@@ -835,12 +835,12 @@ No ad impressions recorded yet.
                      .replace(/"ApiNotActivatedMapError"/g, 'null')
                      .replace(/"DeletedKeyMapError"/g, 'null')
                      .replace(/"BillingNotEnabledMapError"/g, 'null')
-                     .replace(/onError:\s*async\s*\(([a-z]+),\s*([a-z]+)\)\s*=>\s*\{\s*([a-z]+)\.rj\s*=\s*3;/g, 'onError:async($1,$2)=>{$3.rj=2;')
+                     .replace(/onError:\s*async\s*\(([a-z]+),\s*([a-z]+)\)\s*=>\s*\{[a-z]+\.rj\s*=\s*3;[^}]+\}/g, 'onError:async($1,$2)=>{a.rj=2;a.dispatchEvent(new _.fga);}')
                      .replace(/this\.message\s*=\s*"Oops! Something went wrong\.";/g, 'this.message="";')
                      .replace(/this\.qh\s*=\s*"Please see the developer console for technical details\.";/g, 'this.qh="";')
                      .replace(/<gmp-internal-request-error-text><\/gmp-internal-request-error-text>/g, '')
-                     .replace(/case 3:\s*(?:var\s+)?a\s*=\s*this\.[a-zA-Z0-9_$]+\(\);/g, 'case 3:a=this.av?this.av():"";')
-                     .replace(/oz\(\)\s*\{\s*return\s*\(0,_[a-zA-Z0-9_$]+\.qq\)`[\s\S]*?`\s*\}/g, 'oz(){return(0,_.qq)``}');
+                     .replace(/case 3:\s*(?:var\s+)?a\s*=\s*this\.[a-zA-Z0-9_$]+\(\);/g, 'case 3:a=this.av();')
+                     .replace(/oz\(\)\s*\{\s*return\s*\(0,_[a-zA-Z0-9_$]+\.qq\)`[\s\S]*?`\s*\}/g, 'oz(){return this.av()}');
 
           text = text.replace(/https?:\/\/maps\.googleapis\.com/g, '/proxy-maps')
                      .replace(/https?:\/\/maps\.gstatic\.com/g, '/proxy-gstatic')

@@ -175,20 +175,31 @@ document.addEventListener('DOMContentLoaded', () => {
     adsScreen.classList.add('fade-out');
     adsEngine.stop();
 
-    // Show Kiosk App
-    setTimeout(() => {
-      adsScreen.classList.add('hidden');
-      kioskApp.classList.remove('hidden');
-      kioskApp.classList.remove('fade-out');
-      kioskApp.classList.add('fade-in');
-
-      // Trigger window & iframe resize so layout and maps fill 100% full screen
+    // Trigger window & iframe resize so layout and maps fill 100% full screen
+    const triggerResizes = () => {
       window.dispatchEvent(new Event('resize'));
       try {
         if (kioskIframe && kioskIframe.contentWindow) {
           kioskIframe.contentWindow.dispatchEvent(new Event('resize'));
+          if (kioskIframe.contentWindow.google && kioskIframe.contentWindow.google.maps && kioskIframe.contentWindow.google.maps.event) {
+            kioskIframe.contentWindow.google.maps.event.trigger(kioskIframe.contentWindow, 'resize');
+          }
         }
       } catch (_) {}
+    };
+
+    triggerResizes();
+    setTimeout(triggerResizes, 100);
+    setTimeout(triggerResizes, 300);
+    setTimeout(triggerResizes, 700);
+    setTimeout(triggerResizes, 1500);
+
+    // Show Kiosk App
+    setTimeout(() => {
+      adsScreen.classList.add('hidden');
+      kioskApp.classList.remove('fade-out');
+      kioskApp.classList.add('fade-in');
+      triggerResizes();
 
       // Start Idle Monitoring
       idleTimer.start();
@@ -206,15 +217,14 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAdminModals();
 
     setTimeout(() => {
-      kioskApp.classList.add('hidden');
       adsScreen.classList.remove('hidden');
       adsScreen.classList.remove('fade-out');
       adsScreen.classList.add('fade-in');
 
       // Restart Ads Carousel
       adsEngine.start();
-      lucide.createIcons();
-    }, 400);
+      if (window.lucide) lucide.createIcons();
+    }, 300);
   }
 
   // 3. Live Clock & Date Updater
