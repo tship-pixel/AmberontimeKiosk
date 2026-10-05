@@ -40,22 +40,43 @@ class AdsEngine {
       const stored = localStorage.getItem('kiosk_ads');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          // Filter out legacy hardcoded/test slides so ONLY user-added ads display
-          const userAds = parsed.filter(s => {
-            if (!s || !s.id) return false;
-            if (s.id.startsWith('taxi-ad')) return false;
-            if (s.id === 'ad-1789493951023' || s.id === 'ad-1789493661455') return false;
-            if (s.mediaUrl && (s.mediaUrl.includes('upload_1789493951016') || s.mediaUrl.includes('upload_1789493661451'))) return false;
-            return true;
-          });
-          return userAds;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
       console.warn('Failed to load stored ads:', e);
     }
-    return [];
+    return [
+      {
+        id: 'ad-1',
+        type: 'image',
+        title: 'Amber OnTime - Ride with Comfort',
+        mediaUrl: 'img/ad1.jpg',
+        qrCodeUrl: null
+      },
+      {
+        id: 'ad-2',
+        type: 'image',
+        title: 'Fast & Reliable Taxi Service',
+        mediaUrl: 'img/ad2.jpg',
+        qrCodeUrl: null
+      },
+      {
+        id: 'ad-3',
+        type: 'image',
+        title: '24/7 Islandwide Airport Transfers',
+        mediaUrl: 'img/ad3.jpg',
+        qrCodeUrl: null
+      },
+      {
+        id: 'ad-4',
+        type: 'image',
+        title: 'Book Your Taxi in Seconds',
+        mediaUrl: 'img/ad4.jpg',
+        qrCodeUrl: null
+      }
+    ];
   }
 
   saveSlides(slides) {
@@ -89,21 +110,14 @@ class AdsEngine {
       }
 
       const data = await res.json();
-      if (Array.isArray(data)) {
-        const normalized = data
-          .filter(item => {
-            if (!item) return false;
-            if (item.id === 'ad-1789493951023' || item.id === 'ad-1789493661455') return false;
-            if (item.mediaUrl && (item.mediaUrl.includes('upload_1789493951016') || item.mediaUrl.includes('upload_1789493661451'))) return false;
-            return true;
-          })
-          .map((item, idx) => ({
-            id: item.id || `remote-ad-${idx}`,
-            type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
-            title: item.title || 'Advertisement',
-            mediaUrl: item.mediaUrl || item.imageUrl || item.image || '',
-            qrCodeUrl: item.qrCodeUrl || item.qrImage || item.qr || ''
-          }));
+      if (Array.isArray(data) && data.length > 0) {
+        const normalized = data.map((item, idx) => ({
+          id: item.id || `remote-ad-${idx}`,
+          type: item.type || (this.isVideoMedia(item) ? 'video' : 'image'),
+          title: item.title || 'Advertisement',
+          mediaUrl: item.mediaUrl || item.imageUrl || item.image || '',
+          qrCodeUrl: item.qrCodeUrl || item.qrImage || item.qr || ''
+        }));
 
         // Compare if slides have changed to avoid interrupting a running slide
         const currentSummary = this.slides.map(s => `${s.id}-${s.mediaUrl}-${s.qrCodeUrl}`).join('|');
@@ -119,9 +133,8 @@ class AdsEngine {
           }
         }
         return { success: true, count: normalized.length };
-      } else {
-        throw new Error('Invalid JSON: expected array of slide objects');
       }
+      return { success: true, count: this.slides.length };
     } catch (err) {
       console.warn('Failed to fetch remote ads:', err.message);
       return { success: false, error: err.message };

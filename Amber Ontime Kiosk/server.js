@@ -1534,8 +1534,12 @@ No ad impressions recorded yet.
 
   proxyReq.on('error', (err) => {
     console.error(`Proxy Error for ${targetPath}:`, err.message);
-    res.writeHead(502, { 'Content-Type': 'text/plain' });
-    res.end('Proxy Error: ' + err.message);
+    if (!res.headersSent) {
+      try {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+        res.end('Proxy Error: ' + err.message);
+      } catch (_) {}
+    }
   });
 
   req.pipe(proxyReq);
